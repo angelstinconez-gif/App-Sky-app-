@@ -1,0 +1,57 @@
+version: '3.9'
+
+# Despliegue local con Docker (alternativa para servidor propio o VPS)
+# Levantar todo:   docker compose up -d
+# Ver logs:        docker compose logs -f
+# Detener:         docker compose down
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: skypv
+      POSTGRES_USER: skypv
+      POSTGRES_PASSWORD: skypv_pass_change_me
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skypv"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_APP: wsgi.py
+      DATABASE_URL: postgresql://skypv:skypv_pass_change_me@db:5432/skypv
+      SECRET_KEY: cambia-esto-en-produccion
+      JWT_SECRET_KEY: cambia-esto-tambien
+      CORS_ORIGINS: http://localhost,http://localhost:8080
+      ADMIN_EMAIL: admin@skyenergy.mx
+      ADMIN_PASSWORD: Sky@Admin2025
+      ADMIN_NAME: Administrador SKY
+    command: >
+      sh -c "flask init-db &&
+             flask create-admin &&
+             flask seed-all &&
+             gunicorn --workers 2 --bind 0.0.0.0:5000 wsgi:app"
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:5000/api
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
