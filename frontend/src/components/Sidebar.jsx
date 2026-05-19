@@ -24,6 +24,7 @@ const NAV = [
   { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ['admin', 'operator'] },
   { to: '/reportes',       label: 'Reportes',     icon: '📈', roles: ['admin', 'operator'] },
   { section: 'Sistema' },
+  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/historial',      label: 'Historial',    icon: '🕓', roles: ['admin'] },
   { to: '/usuarios',       label: 'Usuarios',     icon: '👤', roles: ['admin'] },
 ];

@@ -11,13 +11,17 @@ class ErrorCatalog(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    brand = db.Column(db.String(40), nullable=False, index=True)
+    brand = db.Column(db.String(40), nullable=False, index=True)     # HUAWEI, SUNGROW, etc.
     code = db.Column(db.String(20), nullable=False, index=True)
-    classification = db.Column(db.String(60))      # STRING, INVERSOR, COMUNICACIÓN, etc.
-    problem = db.Column(db.String(120))
+    equipment = db.Column(db.String(120))                            # Inversor SUN2000, etc.
+    classification = db.Column(db.String(60))                        # STRING, INVERSOR, etc.
+    tipo = db.Column(db.String(60))                                  # DC, AC/Red, Arco, etc.
+    problem = db.Column(db.String(200))
     cause = db.Column(db.Text)
     solution = db.Column(db.Text)
-    priority = db.Column(db.String(20))            # Critico, Alta, Intermedia, Baja
+    impact = db.Column(db.Text)
+    source_url = db.Column(db.String(500))
+    priority = db.Column(db.String(20))                              # Critico, Alta, Intermedia, Baja
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -31,9 +35,13 @@ class ErrorCatalog(db.Model):
             "clave": self.clave,
             "brand": self.brand,
             "code": self.code,
+            "equipment": self.equipment,
             "classification": self.classification,
+            "tipo": self.tipo,
             "problem": self.problem,
             "cause": self.cause,
             "solution": self.solution,
+            "impact": self.impact,
+            "sourceUrl": self.source_url,
             "priority": self.priority,
         }

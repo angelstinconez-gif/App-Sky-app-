@@ -10,6 +10,8 @@ from app.models.incidencia import Incidencia
 from app.models.poliza import Poliza
 from app.models.garantia import Garantia
 from app.models.error_catalog import ErrorCatalog
+from app.models.directorio import Directorio
+from app.models.mantenimiento import Mantenimiento
 from app.utils.audit import log_change
 from app.utils.decorators import admin_required
 from app.utils.parse import parse_date, parse_int, parse_str
@@ -110,6 +112,98 @@ def import_polizas():
         db.session.add(p)
         count += 1
     log_change("importar", "polizas", f"{count} pólizas importadas")
+    db.session.commit()
+    return jsonify(ok=True, imported=count)
+
+
+@bp.route("/directorio", methods=["POST"])
+@jwt_required()
+@admin_required
+def import_directorio():
+    """Importa contactos del archivo DIRECTORIO.xlsm con sus columnas reales."""
+    f = request.files.get("file")
+    if not f:
+        return jsonify(error="no_file"), 400
+    headers, rows = _rows(f)
+    idx = {h.lower().strip(): n for n, h in enumerate(headers) if h}
+
+    def g(row, *keys):
+        for k in keys:
+            n = idx.get(k.lower())
+            if n is not None and n < len(row) and row[n] not in (None, "", "N/A"):
+                return row[n]
+        return None
+
+    count = 0
+    for row in rows:
+        if not any(row):
+            continue
+        project = parse_str(g(row, "proyecto", "project"))
+        if not project:
+            continue
+        d = Directorio(
+            project=project,
+            project_code=parse_str(g(row, "codigo de proyecto", "código de proyecto", "projectCode")),
+            system_type=parse_str(g(row, "tipo de sistema sistema", "tipo de sistema", "systemType")),
+            maint_contact=parse_str(g(row, "contacto de mantenimiento en sitio", "contacto mantenimiento", "maintContact")),
+            maint_phone=parse_str(g(row, "numero de contacto de mantenimiento", "numero mantenimiento", "maintPhone")),
+            maint_contact_2=parse_str(g(row, "2° nombre de contacto de mantenimiento", "contacto 2", "maintContact2")),
+            maint_phone_2=parse_str(g(row, "2° numero de contacto de mantenimiento", "numero 2", "maintPhone2")),
+            maint_email=parse_str(g(row, "correo de mantenimiento", "email mantenimiento", "maintEmail")),
+            internal_pm=parse_str(g(row, "contacto interno pm", "pm interno", "internalPm")),
+            internal_phone=parse_str(g(row, "numero de interno", "numero interno", "internalPhone")),
+            client_name=parse_str(g(row, "nombre del cliente", "cliente", "clientName")),
+            client_company=parse_str(g(row, "empresa del cliente", "empresa", "clientCompany")),
+            client_phone=parse_str(g(row, "numero cliente", "telefono cliente", "clientPhone")),
+            client_email=parse_str(g(row, "correo del cliente", "email cliente", "clientEmail")),
+            category=parse_str(g(row, "categoría", "categoria", "category")) or "Mantenimiento",
+        )
+        db.session.add(d)
+        count += 1
+    log_change("importar", "directorio", f"{count} contactos importados")
+    db.session.commit()
+    return jsonify(ok=True, imported=count)
+
+
+@bp.route("/mantenimiento", methods=["POST"])
+@jwt_required()
+@admin_required
+def import_mantenimiento():
+    f = request.files.get("file")
+    if not f:
+        return jsonify(error="no_file"), 400
+    headers, rows = _rows(f)
+    idx = {h.lower().strip(): n for n, h in enumerate(headers) if h}
+
+    def g(row, *keys):
+        for k in keys:
+            n = idx.get(k.lower())
+            if n is not None and n < len(row):
+                return row[n]
+        return None
+
+    count = 0
+    for row in rows:
+        if not any(row):
+            continue
+        project = parse_str(g(row, "proyecto", "project"))
+        if not project:
+            continue
+        m = Mantenimiento(
+            project=project,
+            code=parse_str(g(row, "codigo", "código", "code")),
+            tipo=parse_str(g(row, "tipo")),
+            estado=parse_str(g(row, "estado", "status")) or "Programado",
+            fecha_programada=parse_date(g(row, "fecha programada", "fechaProgramada")),
+            fecha_ejecutada=parse_date(g(row, "fecha ejecutada", "fechaEjecutada")),
+            cuadrilla=parse_str(g(row, "cuadrilla")),
+            responsable=parse_str(g(row, "responsable")),
+            descripcion=parse_str(g(row, "descripcion", "descripción")),
+            resultados=parse_str(g(row, "resultados")),
+        )
+        db.session.add(m)
+        count += 1
+    log_change("importar", "mantenimiento", f"{count} mantenimientos importados")
     db.session.commit()
     return jsonify(ok=True, imported=count)
 

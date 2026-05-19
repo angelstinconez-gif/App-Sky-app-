@@ -36,6 +36,7 @@ def create_app(config_class="config.Config"):
         evento,
         historial,
         mantenimiento,
+        notification,
     )
 
     # ── Blueprints ──
@@ -53,6 +54,8 @@ def create_app(config_class="config.Config"):
     from app.routes.mantenimiento import bp as mantenimiento_bp
     from app.routes.dashboard import bp as dashboard_bp
     from app.routes.importar import bp as importar_bp
+    from app.routes.notifications import bp as notifications_bp
+    from app.routes.assignees import bp as assignees_bp
 
     app.register_blueprint(auth_bp,         url_prefix="/api/auth")
     app.register_blueprint(users_bp,        url_prefix="/api/users")
@@ -68,6 +71,8 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(mantenimiento_bp,url_prefix="/api/mantenimiento")
     app.register_blueprint(dashboard_bp,    url_prefix="/api/dashboard")
     app.register_blueprint(importar_bp,     url_prefix="/api/importar")
+    app.register_blueprint(notifications_bp,url_prefix="/api/notifications")
+    app.register_blueprint(assignees_bp,    url_prefix="/api/assignees")
 
     # ── CLI: seed ──
     from app.seeds.seed_cli import register_seed_cli

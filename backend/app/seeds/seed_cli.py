@@ -12,11 +12,9 @@ from app.models.garantia import Garantia
 from app.models.directorio import Directorio
 from app.seeds.seed_data import (
     DEFAULT_USERS,
-    SEED_ERRORES,
     SEED_POLIZAS,
     SEED_INCIDENCIAS,
     SEED_GARANTIAS,
-    SEED_DIRECTORIO,
 )
 from app.utils.parse import parse_date
 
@@ -46,10 +44,11 @@ def register_seed_cli(app):
             click.echo(f"✅ Admin creado: {email} / {password}")
 
     @app.cli.command("seed-all")
-    def seed_all():
+    @click.option("--replace-errors", is_flag=True, help="Borra y recrea el catálogo de errores")
+    def seed_all(replace_errors):
         """Carga todos los datos iniciales (usuarios, errores, pólizas, incidencias, etc.)."""
         with app.app_context():
-            # Usuarios
+            # ── Usuarios ──
             for u in DEFAULT_USERS:
                 if User.query.filter_by(email=u["email"]).first():
                     continue
@@ -65,15 +64,38 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Usuarios: {User.query.count()}")
 
-            # Errores
-            for e in SEED_ERRORES:
+            # ── Catálogo de errores (desde el Excel completo) ──
+            try:
+                from app.seeds.errores_full import FULL_ERRORES
+            except ImportError:
+                FULL_ERRORES = []
+                click.echo("⚠️  Archivo errores_full.py no encontrado, omito catálogo")
+
+            if replace_errors and FULL_ERRORES:
+                ErrorCatalog.query.delete()
+                db.session.commit()
+                click.echo("🗑️  Catálogo de errores anterior eliminado")
+
+            for e in FULL_ERRORES:
                 if ErrorCatalog.query.filter_by(brand=e["brand"], code=e["code"]).first():
                     continue
-                db.session.add(ErrorCatalog(**e))
+                db.session.add(ErrorCatalog(
+                    brand=e["brand"],
+                    code=e["code"],
+                    equipment=e.get("equipment"),
+                    classification=e.get("classification"),
+                    tipo=e.get("tipo"),
+                    problem=e.get("problem"),
+                    cause=e.get("cause"),
+                    solution=e.get("solution"),
+                    impact=e.get("impact"),
+                    source_url=e.get("source_url"),
+                    priority=e.get("priority"),
+                ))
             db.session.commit()
             click.echo(f"✅ Errores: {ErrorCatalog.query.count()}")
 
-            # Pólizas
+            # ── Pólizas demo ──
             for p in SEED_POLIZAS:
                 if p.get("code") and Poliza.query.filter_by(code=p["code"]).first():
                     continue
@@ -99,7 +121,7 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Pólizas: {Poliza.query.count()}")
 
-            # Incidencias
+            # ── Incidencias demo ──
             for i in SEED_INCIDENCIAS:
                 db.session.add(
                     Incidencia(
@@ -124,7 +146,7 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Incidencias: {Incidencia.query.count()}")
 
-            # Garantías
+            # ── Garantías demo ──
             for g in SEED_GARANTIAS:
                 db.session.add(
                     Garantia(
@@ -144,11 +166,32 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Garantías: {Garantia.query.count()}")
 
-            # Directorio
-            for d in SEED_DIRECTORIO:
-                if Directorio.query.filter_by(name=d["name"]).first():
+            # ── Directorio (desde Excel) ──
+            try:
+                from app.seeds.directorio_full import FULL_DIRECTORIO
+            except ImportError:
+                FULL_DIRECTORIO = []
+                click.echo("⚠️  Archivo directorio_full.py no encontrado, omito directorio")
+
+            for d in FULL_DIRECTORIO:
+                if Directorio.query.filter_by(project=d["project"], maint_contact=d.get("maint_contact")).first():
                     continue
-                db.session.add(Directorio(**d))
+                db.session.add(Directorio(
+                    project=d["project"],
+                    project_code=d.get("project_code"),
+                    system_type=d.get("system_type"),
+                    maint_contact=d.get("maint_contact"),
+                    maint_phone=d.get("maint_phone"),
+                    maint_contact_2=d.get("maint_contact_2"),
+                    maint_phone_2=d.get("maint_phone_2"),
+                    maint_email=d.get("maint_email"),
+                    internal_pm=d.get("internal_pm"),
+                    internal_phone=d.get("internal_phone"),
+                    client_name=d.get("client_name"),
+                    client_email=d.get("client_email"),
+                    client_phone=d.get("client_phone"),
+                    category="Cliente" if d.get("client_name") else "Mantenimiento",
+                ))
             db.session.commit()
             click.echo(f"✅ Directorio: {Directorio.query.count()}")
 

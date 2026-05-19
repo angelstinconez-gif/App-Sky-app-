@@ -28,6 +28,8 @@ export default function CrudPage({
   deleteRoles = ['admin'],
   defaults = {},
   exportName,
+  extraActions,        // ReactNode adicional al lado de los botones (importar, etc.)
+  helpText,            // texto opcional debajo del encabezado
 }) {
   const { hasRole } = useAuth();
   const toast = useToast();
@@ -94,13 +96,17 @@ export default function CrudPage({
       <div className="section-header">
         <h2>{title}</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{items.length} registros</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {extraActions}
           <button className="btn btn-sm" onClick={() => downloadXLSX(items, exportName || title, `${(exportName||title).toLowerCase()}_${Date.now()}.xlsx`)}>
             ⬇ Exportar
           </button>
           {canWrite && <button className="btn btn-sm btn-primary" onClick={onNew}>+ Nuevo</button>}
         </div>
       </div>
+      {helpText && (
+        <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 12 }}>{helpText}</div>
+      )}
 
       <div className="filters-bar">
         <input className="filter-input search-input" placeholder="Buscar..."

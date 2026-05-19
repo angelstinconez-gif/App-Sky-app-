@@ -1,0 +1,19 @@
+{
+  "name": "SKY PV Monitor",
+  "short_name": "SKY PV",
+  "description": "Sistema de incidencias fotovoltaicas",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0EA5E9",
+  "background_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

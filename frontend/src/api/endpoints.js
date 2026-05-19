@@ -48,20 +48,35 @@ export const dashboardApi = {
   charts: () => api.get('/dashboard/charts').then((r) => r.data),
 };
 
+function uploadFile(path) {
+  return (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api
+      .post(path, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then((r) => r.data);
+  };
+}
+
 export const importarApi = {
-  incidencias: (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return api.post('/importar/incidencias', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
-  },
-  polizas: (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return api.post('/importar/polizas', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
-  },
-  errores: (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return api.post('/importar/errores', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
-  },
+  incidencias: uploadFile('/importar/incidencias'),
+  polizas: uploadFile('/importar/polizas'),
+  errores: uploadFile('/importar/errores'),
+  directorio: uploadFile('/importar/directorio'),
+  mantenimiento: uploadFile('/importar/mantenimiento'),
+};
+
+export const assigneesApi = {
+  list: () => api.get('/assignees').then((r) => r.data),
+};
+
+export const notificationsApi = {
+  vapidKey: () => api.get('/notifications/vapid-public-key').then((r) => r.data.publicKey),
+  subscribePush: (subscription) =>
+    api.post('/notifications/subscribe/push', subscription).then((r) => r.data),
+  subscribeWhatsapp: (phone) =>
+    api.post('/notifications/subscribe/whatsapp', { phone }).then((r) => r.data),
+  list: () => api.get('/notifications/subscriptions').then((r) => r.data),
+  unsubscribe: (id) => api.delete(`/notifications/subscriptions/${id}`).then((r) => r.data),
+  test: () => api.post('/notifications/test').then((r) => r.data),
 };

@@ -20,6 +20,7 @@ import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
 import Historial from './pages/Historial';
 import Usuarios from './pages/Usuarios';
+import Notificaciones from './pages/Notificaciones';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
         <Route path="/usuarios" element={<Protected roles={['admin']}><Usuarios /></Protected>} />
+        <Route path="/notificaciones" element={<Protected><Notificaciones /></Protected>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </ToastProvider>

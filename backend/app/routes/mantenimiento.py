@@ -7,6 +7,7 @@ from app import db
 from app.models.mantenimiento import Mantenimiento
 from app.utils.audit import log_change
 from app.utils.decorators import role_required
+from app.utils.notify import notify_event
 from app.utils.parse import parse_date, parse_int, parse_str
 
 bp = Blueprint("mantenimiento", __name__)
@@ -55,6 +56,18 @@ def create_m():
     db.session.flush()
     log_change("mantenimiento", "crear", m.project, new=m.to_dict())
     db.session.commit()
+    # Notificar a suscriptores
+    try:
+        notify_event(
+            event_type="mantenimiento_programado",
+            title=f"🔧 Nuevo mantenimiento programado",
+            body=f"{m.tipo or 'Mantenimiento'} en {m.project}"
+                 + (f" para el {m.fecha_programada}" if m.fecha_programada else ""),
+            related_type="mantenimiento",
+            related_id=m.id,
+        )
+    except Exception as e:
+        print(f"⚠️  Error notificando: {e}")
     return jsonify(m.to_dict()), 201
 
 
@@ -69,6 +82,18 @@ def update_m(item_id):
     _apply(m, request.get_json(silent=True) or {})
     log_change("mantenimiento", "editar", m.project, old=old, new=m.to_dict())
     db.session.commit()
+    # Notificar cambios de estado relevantes
+    if old.get("estado") != m.estado:
+        try:
+            notify_event(
+                event_type=f"mantenimiento_{m.estado.lower().replace(' ', '_')}",
+                title=f"🔄 Mantenimiento {m.estado}",
+                body=f"{m.tipo or 'Mantenimiento'} en {m.project}",
+                related_type="mantenimiento",
+                related_id=m.id,
+            )
+        except Exception as e:
+            print(f"⚠️  Error notificando: {e}")
     return jsonify(m.to_dict())
 
 

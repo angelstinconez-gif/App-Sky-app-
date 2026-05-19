@@ -3,7 +3,13 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { incidenciasApi, erroresApi } from '../api/endpoints';
+import {
+  incidenciasApi,
+  erroresApi,
+  polizasApi,
+  ticketsApi,
+  assigneesApi,
+} from '../api/endpoints';
 import { fmtDate, priorityClass, statusClass, downloadXLSX } from '../utils/format';
 
 const PRIORITIES = ['Critico', 'Alta', 'Intermedia', 'Baja'];
@@ -14,6 +20,10 @@ const empty = {
   priority: '', notes: '', incDate: '', errCode: '', classification: '',
   problem: '', cause: '', solution: '', ticketAlta: 'NO', ticketDate: '',
   responsible: '', comments: '',
+  // sub-form de ticket inline
+  _createTicket: false,
+  _ticketTitle: '', _ticketAssigned: '', _ticketDueDate: '',
+  _ticketTipo: 'Remota', _ticketDescription: '',
 };
 
 export default function Incidencias() {
@@ -27,10 +37,16 @@ export default function Incidencias() {
   const [q, setQ] = useState('');
   const [priority, setPriority] = useState('');
   const [status, setStatus] = useState('');
+
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(null);
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
+
+  // Catálogos en memoria para autocompletar y dropdowns
+  const [errors, setErrors] = useState([]);
+  const [polizas, setPolizas] = useState([]);
+  const [assignees, setAssignees] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -43,21 +59,110 @@ export default function Incidencias() {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [q, priority, status]);
 
+  // Catálogos sólo se cargan una vez
+  useEffect(() => {
+    erroresApi.list().then(setErrors).catch(() => {});
+    polizasApi.list().then(setPolizas).catch(() => {});
+    assigneesApi.list().then(setAssignees).catch(() => {});
+  }, []);
+
+  // ── Filtrado de códigos de error por plataforma seleccionada ──
+  const codesForPlatform = useMemo(() => {
+    if (!form.platform) return [];
+    return errors.filter((e) => e.brand?.toUpperCase() === form.platform.toUpperCase());
+  }, [errors, form.platform]);
+
   const onNew = () => { setForm(empty); setEditingId(null); setOpenModal(true); };
   const onEdit = (row) => {
     setForm({ ...empty, ...row });
     setEditingId(row.id);
     setOpenModal(true);
   };
+
+  // ── Cuando cambia el código de error (o se selecciona) → auto-llenar ──
+  const onErrCodeChange = (code) => {
+    const match = errors.find(
+      (e) =>
+        e.brand?.toUpperCase() === form.platform?.toUpperCase() &&
+        String(e.code) === String(code)
+    );
+    setForm((f) => ({
+      ...f,
+      errCode: code,
+      ...(match
+        ? {
+            classification: match.classification || f.classification,
+            problem: match.problem || f.problem,
+            cause: match.cause || f.cause,
+            solution: match.solution || f.solution,
+            priority: f.priority || match.priority || '',
+          }
+        : {}),
+    }));
+  };
+
+  // ── Cuando cambia el sitio/código de proyecto → buscar en Pólizas y auto-llenar ──
+  const onProjectAutofill = () => {
+    if (!form.code && !form.site) return;
+    const p = polizas.find(
+      (x) =>
+        (form.code && x.code?.toUpperCase() === form.code.toUpperCase()) ||
+        (form.site && x.project?.toLowerCase() === form.site.toLowerCase())
+    );
+    if (p) {
+      setForm((f) => ({
+        ...f,
+        site: f.site || p.project,
+        code: f.code || p.code,
+        client: f.client || p.grupo,
+        platform: f.platform || (p.platform || '').toUpperCase(),
+      }));
+      toast('Datos cargados desde la póliza');
+    }
+  };
+
   const onSave = async () => {
     if (!form.site) return toast('El sitio es obligatorio', 'error');
     try {
+      // Si pidió crear ticket, forzar Ticket Alta = SI
+      const payload = { ...form };
+      if (form._createTicket) {
+        payload.ticketAlta = 'SI';
+        if (!payload.ticketDate) payload.ticketDate = new Date().toISOString().slice(0, 10);
+      }
+      // Limpia campos internos antes de mandar
+      delete payload._createTicket;
+      delete payload._ticketTitle;
+      delete payload._ticketAssigned;
+      delete payload._ticketDueDate;
+      delete payload._ticketTipo;
+      delete payload._ticketDescription;
+
+      let inc;
       if (editingId) {
-        await incidenciasApi.update(editingId, form);
-        toast('Incidencia actualizada');
+        inc = await incidenciasApi.update(editingId, payload);
       } else {
-        await incidenciasApi.create(form);
-        toast('Incidencia creada');
+        inc = await incidenciasApi.create(payload);
+      }
+
+      // Crear ticket si el usuario lo activó
+      if (form._createTicket) {
+        await ticketsApi.create({
+          title: form._ticketTitle || `${form.classification || 'Atención'} — ${form.site}`,
+          site: form.site,
+          client: form.client,
+          projectCode: form.code,
+          priority: form.priority || 'Intermedia',
+          status: 'Abierto',
+          assignedTo: form._ticketAssigned,
+          openDate: new Date().toISOString().slice(0, 10),
+          dueDate: form._ticketDueDate,
+          description: form._ticketDescription || form.notes,
+          incidenciaId: inc.id,
+        });
+        toast('Incidencia y ticket creados');
+      } else {
+        toast(editingId ? 'Incidencia actualizada' : 'Incidencia creada');
       }
       setOpenModal(false);
       load();
@@ -65,6 +170,7 @@ export default function Incidencias() {
       toast(e?.response?.data?.message || 'Error al guardar', 'error');
     }
   };
+
   const onDelete = async (id) => {
     if (!confirm('¿Eliminar esta incidencia?')) return;
     await incidenciasApi.remove(id);
@@ -78,26 +184,6 @@ export default function Incidencias() {
     load();
   };
 
-  const onLookupError = async () => {
-    if (!form.platform || !form.errCode) return;
-    try {
-      const e = await erroresApi.lookup(form.platform, form.errCode);
-      if (e) {
-        setForm((f) => ({
-          ...f,
-          classification: e.classification || f.classification,
-          problem: e.problem || f.problem,
-          cause: e.cause || f.cause,
-          solution: e.solution || f.solution,
-          priority: f.priority || e.priority || '',
-        }));
-        toast('Datos cargados del catálogo');
-      } else {
-        toast('No se encontró ese código', 'error');
-      }
-    } catch {}
-  };
-
   const exportXlsx = () => downloadXLSX(items, 'Incidencias', `incidencias_${Date.now()}.xlsx`);
 
   const columns = useMemo(() => [
@@ -109,6 +195,7 @@ export default function Incidencias() {
     { key: 'errCode', label: 'Error' },
     { key: 'classification', label: 'Clasif.' },
     { key: 'incDate', label: 'Fecha', render: (r) => fmtDate(r.incDate) },
+    { key: 'ticketAlta', label: 'Ticket' },
     { key: 'days', label: 'Días', render: (r) => (r.days != null ? `${r.days}d` : '—') },
     { key: 'status', label: 'Estado', render: (r) => <span className={`badge ${statusClass(r.status)}`}>{r.status}</span> },
     {
@@ -166,65 +253,161 @@ export default function Incidencias() {
         }
       >
         <div className="form-grid">
+          {/* ── PROYECTO ── */}
           <FormRow label="Plataforma">
-            <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })}>
+            <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value, errCode: '' })}>
               <option value="">—</option>
               {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
             </select>
           </FormRow>
-          <FormRow label="Sitio *">
-            <input value={form.site} onChange={(e) => setForm({ ...form, site: e.target.value })} />
+          <FormRow label="Código proyecto">
+            <div style={{ display: 'flex', gap: 4 }}>
+              <input list="poliza-codes" value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                onBlur={onProjectAutofill}
+                style={{ flex: 1 }} />
+              <datalist id="poliza-codes">
+                {polizas.map((p) => <option key={p.id} value={p.code}>{p.project}</option>)}
+              </datalist>
+            </div>
           </FormRow>
-          <FormRow label="Cliente">
+          <FormRow label="Sitio *">
+            <input list="poliza-projects" value={form.site}
+              onChange={(e) => setForm({ ...form, site: e.target.value })}
+              onBlur={onProjectAutofill} />
+            <datalist id="poliza-projects">
+              {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
+            </datalist>
+          </FormRow>
+          <FormRow label="Cliente (auto)">
             <input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
           </FormRow>
-          <FormRow label="Código proyecto">
-            <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+
+          {/* ── CÓDIGO DE ERROR (dropdown filtrado por plataforma) ── */}
+          <FormRow label={`Código de Error ${form.platform ? `(${codesForPlatform.length} disponibles)` : '— elige plataforma'}`}>
+            <select value={form.errCode} onChange={(e) => onErrCodeChange(e.target.value)} disabled={!form.platform}>
+              <option value="">—</option>
+              {codesForPlatform.map((e) => (
+                <option key={e.id} value={e.code}>
+                  {e.code} — {e.problem || e.classification}
+                </option>
+              ))}
+            </select>
           </FormRow>
-          <FormRow label="Prioridad">
+          <FormRow label="Prioridad (auto)">
             <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
               <option value="">—</option>
               {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
             </select>
           </FormRow>
-          <FormRow label="Código de error">
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input value={form.errCode} onChange={(e) => setForm({ ...form, errCode: e.target.value })}
-                onBlur={onLookupError} style={{ flex: 1 }} />
-              <button type="button" className="btn btn-sm" onClick={onLookupError}>🔍</button>
-            </div>
-          </FormRow>
-          <FormRow label="Fecha incidencia">
-            <input type="date" value={form.incDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, incDate: e.target.value })} />
-          </FormRow>
-          <FormRow label="Clasificación">
+
+          <FormRow label="Clasificación (auto)">
             <input value={form.classification} onChange={(e) => setForm({ ...form, classification: e.target.value })} />
           </FormRow>
-          <FormRow label="Problema">
+          <FormRow label="Problema (auto)">
             <input value={form.problem} onChange={(e) => setForm({ ...form, problem: e.target.value })} />
           </FormRow>
-          <FormRow label="Ticket Alta">
+
+          <FormRow label="Causa Posible (auto)" full>
+            <textarea rows="2" value={form.cause} onChange={(e) => setForm({ ...form, cause: e.target.value })} />
+          </FormRow>
+          <FormRow label="Solución (auto)" full>
+            <textarea rows="2" value={form.solution} onChange={(e) => setForm({ ...form, solution: e.target.value })} />
+          </FormRow>
+
+          <FormRow label="Notas de Monitoreo" full>
+            <textarea rows="2" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </FormRow>
+
+          <FormRow label="Fecha/Hora Incidencia">
+            <input type="date" value={form.incDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, incDate: e.target.value })} />
+          </FormRow>
+          <FormRow label="Alta de Ticket">
             <select value={form.ticketAlta} onChange={(e) => setForm({ ...form, ticketAlta: e.target.value })}>
-              <option>NO</option>
-              <option>SI</option>
+              <option value="NO">NO</option>
+              <option value="SI">SI — Ya generado</option>
             </select>
           </FormRow>
-          <FormRow label="Fecha ticket">
+          <FormRow label="Fecha Ticket Plataforma">
             <input type="date" value={form.ticketDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, ticketDate: e.target.value })} />
           </FormRow>
           <FormRow label="Responsable">
-            <input value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
+            <input value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })}
+              placeholder="Nombre del responsable" />
+          </FormRow>
+          <FormRow label="Comentarios" full>
+            <textarea rows="2" value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} />
           </FormRow>
 
-          <FormRow label="Notas" full>
-            <textarea rows="2" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </FormRow>
-          <FormRow label="Causa" full>
-            <textarea rows="2" value={form.cause} onChange={(e) => setForm({ ...form, cause: e.target.value })} />
-          </FormRow>
-          <FormRow label="Solución" full>
-            <textarea rows="2" value={form.solution} onChange={(e) => setForm({ ...form, solution: e.target.value })} />
-          </FormRow>
+          {/* ─────────── PANEL DE TICKET INLINE ─────────── */}
+          {!editingId && (
+            <div className="full" style={{
+              gridColumn: '1/-1',
+              border: '1px solid var(--sky)',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+              marginTop: 8,
+            }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'var(--sky)', color: '#fff',
+                padding: '10px 14px', cursor: 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form._createTicket}
+                  onChange={(e) => setForm({ ...form, _createTicket: e.target.checked })}
+                />
+                <strong>📋 Crear ticket de atención simultáneamente</strong>
+                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.85 }}>
+                  Marcará Ticket Alta = SI automáticamente
+                </span>
+              </label>
+              {form._createTicket && (
+                <div style={{ padding: 14, background: '#F0F9FF' }}>
+                  <div className="form-grid">
+                    <FormRow label="Título del ticket">
+                      <input value={form._ticketTitle}
+                        onChange={(e) => setForm({ ...form, _ticketTitle: e.target.value })}
+                        placeholder={`${form.classification || 'Atención'} — ${form.site || 'sitio'}`} />
+                    </FormRow>
+                    <FormRow label="Tipo de atención">
+                      <select value={form._ticketTipo} onChange={(e) => setForm({ ...form, _ticketTipo: e.target.value })}>
+                        <option>Remota</option>
+                        <option>Presencial</option>
+                        <option>Mixta</option>
+                      </select>
+                    </FormRow>
+                    <FormRow label="Asignar a (usuario o cuadrilla)">
+                      <select value={form._ticketAssigned}
+                        onChange={(e) => setForm({ ...form, _ticketAssigned: e.target.value })}>
+                        <option value="">— elegir —</option>
+                        <optgroup label="Usuarios">
+                          {assignees.filter((a) => a.type === 'user').map((a) => (
+                            <option key={a.id} value={a.value}>{a.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Cuadrillas">
+                          {assignees.filter((a) => a.type === 'cuadrilla').map((a) => (
+                            <option key={a.id} value={a.value}>{a.label}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </FormRow>
+                    <FormRow label="Fecha compromiso visita">
+                      <input type="date" value={form._ticketDueDate}
+                        onChange={(e) => setForm({ ...form, _ticketDueDate: e.target.value })} />
+                    </FormRow>
+                    <FormRow label="Comentarios del ticket" full>
+                      <textarea rows="2" value={form._ticketDescription}
+                        onChange={(e) => setForm({ ...form, _ticketDescription: e.target.value })}
+                        placeholder="Instrucciones, materiales necesarios, etc." />
+                    </FormRow>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
 

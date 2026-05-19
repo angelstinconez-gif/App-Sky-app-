@@ -1,14 +1,28 @@
+import { useState } from 'react';
 import CrudPage from '../components/CrudPage';
-import { polizasApi } from '../api/endpoints';
+import ImportButton from '../components/ImportButton';
+import { polizasApi, importarApi } from '../api/endpoints';
 import { fmtDate, statusClass } from '../utils/format';
+import { useAuth } from '../context/AuthContext';
 
 export default function Polizas() {
+  const { hasRole } = useAuth();
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const extra = hasRole('admin') ? (
+    <ImportButton uploader={importarApi.polizas} onDone={() => setReloadKey((k) => k + 1)}
+      label="📥 Importar pólizas" />
+  ) : null;
+
   return (
     <CrudPage
+      key={reloadKey}
       title="Pólizas"
       api={polizasApi}
       writeRoles={['admin', 'mantenimiento']}
       deleteRoles={['admin']}
+      extraActions={extra}
+      helpText="Base maestra de proyectos. Importa el Excel de Vigencia para cargar todas las plantas con fechas de inicio y fin de póliza/garantía."
       filters={[{ key: 'status', label: 'estados', options: ['Vigente', 'Vencida'] }]}
       columns={[
         { key: 'item', label: '#' },
