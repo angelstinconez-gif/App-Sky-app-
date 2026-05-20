@@ -1,4 +1,4 @@
-"""Comandos CLI Flask: flask seed-all, flask init-db, flask create-admin."""
+"""Comandos CLI Flask: flask seed-all, flask init-db, flask create-admin, flask upgrade-schema."""
 import os
 
 import click
@@ -22,14 +22,49 @@ from app.utils.parse import parse_date
 def register_seed_cli(app):
     @app.cli.command("init-db")
     def init_db():
-        """Crea todas las tablas (uso rápido sin migraciones)."""
         with app.app_context():
             db.create_all()
         click.echo("✅ Base de datos inicializada.")
 
+    @app.cli.command("upgrade-schema")
+    def upgrade_schema():
+        """Recrea tablas con esquema obsoleto y crea tablas nuevas (sin migraciones)."""
+        from sqlalchemy import inspect
+        from app.models.notification import NotificationSubscription, NotificationLog
+
+        with app.app_context():
+            insp = inspect(db.engine)
+            tables_to_recreate = []
+
+            if insp.has_table("directorio"):
+                cols = {c["name"] for c in insp.get_columns("directorio")}
+                if "client_company" not in cols or "maint_contact_2" not in cols:
+                    tables_to_recreate.append(Directorio.__table__)
+
+            if insp.has_table("errores_catalogo"):
+                cols = {c["name"] for c in insp.get_columns("errores_catalogo")}
+                if "equipment" not in cols or "source_url" not in cols:
+                    tables_to_recreate.append(ErrorCatalog.__table__)
+
+            for t in tables_to_recreate:
+                click.echo(f"🔄 Recreando tabla: {t.name}")
+                t.drop(db.engine)
+                t.create(db.engine)
+
+            if not insp.has_table("notification_subscriptions"):
+                NotificationSubscription.__table__.create(db.engine)
+                click.echo("➕ Creada: notification_subscriptions")
+            if not insp.has_table("notification_log"):
+                NotificationLog.__table__.create(db.engine)
+                click.echo("➕ Creada: notification_log")
+
+            if not tables_to_recreate:
+                click.echo("✅ Esquema ya está al día.")
+            else:
+                click.echo(f"✅ {len(tables_to_recreate)} tabla(s) actualizadas.")
+
     @app.cli.command("create-admin")
     def create_admin():
-        """Crea el usuario admin desde variables de entorno si no existe."""
         with app.app_context():
             email = os.environ.get("ADMIN_EMAIL", "admin@skyenergy.mx").lower()
             password = os.environ.get("ADMIN_PASSWORD", "Sky@Admin2025")
@@ -41,140 +76,101 @@ def register_seed_cli(app):
             u.set_password(password)
             db.session.add(u)
             db.session.commit()
-            click.echo(f"✅ Admin creado: {email} / {password}")
+            click.echo(f"✅ Admin creado: {email}")
 
     @app.cli.command("seed-all")
-    @click.option("--replace-errors", is_flag=True, help="Borra y recrea el catálogo de errores")
+    @click.option("--replace-errors", is_flag=True)
     def seed_all(replace_errors):
-        """Carga todos los datos iniciales (usuarios, errores, pólizas, incidencias, etc.)."""
         with app.app_context():
-            # ── Usuarios ──
             for u in DEFAULT_USERS:
                 if User.query.filter_by(email=u["email"]).first():
                     continue
-                user = User(
-                    email=u["email"],
-                    name=u["name"],
-                    role=u["role"],
-                    initials=u.get("initials"),
-                    active=True,
-                )
+                user = User(email=u["email"], name=u["name"], role=u["role"],
+                            initials=u.get("initials"), active=True)
                 user.set_password(u["password"])
                 db.session.add(user)
             db.session.commit()
             click.echo(f"✅ Usuarios: {User.query.count()}")
 
-            # ── Catálogo de errores (desde el Excel completo) ──
             try:
                 from app.seeds.errores_full import FULL_ERRORES
             except ImportError:
                 FULL_ERRORES = []
-                click.echo("⚠️  Archivo errores_full.py no encontrado, omito catálogo")
 
             if replace_errors and FULL_ERRORES:
                 ErrorCatalog.query.delete()
                 db.session.commit()
-                click.echo("🗑️  Catálogo de errores anterior eliminado")
 
             for e in FULL_ERRORES:
                 if ErrorCatalog.query.filter_by(brand=e["brand"], code=e["code"]).first():
                     continue
                 db.session.add(ErrorCatalog(
-                    brand=e["brand"],
-                    code=e["code"],
+                    brand=e["brand"], code=e["code"],
                     equipment=e.get("equipment"),
                     classification=e.get("classification"),
-                    tipo=e.get("tipo"),
-                    problem=e.get("problem"),
-                    cause=e.get("cause"),
-                    solution=e.get("solution"),
-                    impact=e.get("impact"),
-                    source_url=e.get("source_url"),
+                    tipo=e.get("tipo"), problem=e.get("problem"),
+                    cause=e.get("cause"), solution=e.get("solution"),
+                    impact=e.get("impact"), source_url=e.get("source_url"),
                     priority=e.get("priority"),
                 ))
             db.session.commit()
             click.echo(f"✅ Errores: {ErrorCatalog.query.count()}")
 
-            # ── Pólizas demo ──
             for p in SEED_POLIZAS:
                 if p.get("code") and Poliza.query.filter_by(code=p["code"]).first():
                     continue
-                db.session.add(
-                    Poliza(
-                        item=p.get("item"),
-                        grupo=p.get("grupo"),
-                        code=p.get("code"),
-                        project=p["project"],
-                        tarifa=p.get("tarifa"),
-                        platform=p.get("platform"),
-                        panels=p.get("panels"),
-                        inv=p.get("inv"),
-                        sys_start=parse_date(p.get("sysStart")),
-                        pol_start=parse_date(p.get("polStart")),
-                        pol_end=parse_date(p.get("polEnd")),
-                        status=p.get("status"),
-                        poliza=p.get("poliza"),
-                        zona=p.get("zona"),
-                        cuadrilla=p.get("cuadrilla"),
-                    )
-                )
+                db.session.add(Poliza(
+                    item=p.get("item"), grupo=p.get("grupo"), code=p.get("code"),
+                    project=p["project"], tarifa=p.get("tarifa"),
+                    platform=p.get("platform"), panels=p.get("panels"), inv=p.get("inv"),
+                    sys_start=parse_date(p.get("sysStart")),
+                    pol_start=parse_date(p.get("polStart")),
+                    pol_end=parse_date(p.get("polEnd")),
+                    status=p.get("status"), poliza=p.get("poliza"),
+                    zona=p.get("zona"), cuadrilla=p.get("cuadrilla"),
+                ))
             db.session.commit()
             click.echo(f"✅ Pólizas: {Poliza.query.count()}")
 
-            # ── Incidencias demo ──
             for i in SEED_INCIDENCIAS:
-                db.session.add(
-                    Incidencia(
-                        platform=i.get("platform"),
-                        num=i.get("num"),
-                        site=i["site"],
-                        client=i.get("client"),
-                        code=i.get("code"),
-                        priority=i.get("priority"),
-                        notes=i.get("notes"),
-                        inc_date=parse_date(i.get("incDate")),
-                        err_code=i.get("errCode"),
-                        classification=i.get("classification"),
-                        problem=i.get("problem"),
-                        cause=i.get("cause"),
-                        solution=i.get("solution"),
-                        ticket_alta=i.get("ticketAlta"),
-                        ticket_date=parse_date(i.get("ticketDate")),
-                        status="abierta",
-                    )
-                )
+                db.session.add(Incidencia(
+                    platform=i.get("platform"), num=i.get("num"),
+                    site=i["site"], client=i.get("client"), code=i.get("code"),
+                    priority=i.get("priority"), notes=i.get("notes"),
+                    inc_date=parse_date(i.get("incDate")),
+                    err_code=i.get("errCode"),
+                    classification=i.get("classification"),
+                    problem=i.get("problem"), cause=i.get("cause"),
+                    solution=i.get("solution"),
+                    ticket_alta=i.get("ticketAlta"),
+                    ticket_date=parse_date(i.get("ticketDate")),
+                    status="abierta",
+                ))
             db.session.commit()
             click.echo(f"✅ Incidencias: {Incidencia.query.count()}")
 
-            # ── Garantías demo ──
             for g in SEED_GARANTIAS:
-                db.session.add(
-                    Garantia(
-                        project=g["project"],
-                        equipment=g.get("equipment"),
-                        brand=g.get("brand"),
-                        model=g.get("model"),
-                        sn=g.get("sn"),
-                        error=g.get("error"),
-                        supplier=g.get("supplier"),
-                        contact=g.get("contact"),
-                        ticket=g.get("ticket"),
-                        status=g.get("status"),
-                        upload_date=parse_date(g.get("uploadDate")),
-                    )
-                )
+                db.session.add(Garantia(
+                    project=g["project"], equipment=g.get("equipment"),
+                    brand=g.get("brand"), model=g.get("model"), sn=g.get("sn"),
+                    error=g.get("error"), supplier=g.get("supplier"),
+                    contact=g.get("contact"), ticket=g.get("ticket"),
+                    status=g.get("status"),
+                    upload_date=parse_date(g.get("uploadDate")),
+                ))
             db.session.commit()
             click.echo(f"✅ Garantías: {Garantia.query.count()}")
 
-            # ── Directorio (desde Excel) ──
             try:
                 from app.seeds.directorio_full import FULL_DIRECTORIO
             except ImportError:
                 FULL_DIRECTORIO = []
-                click.echo("⚠️  Archivo directorio_full.py no encontrado, omito directorio")
 
             for d in FULL_DIRECTORIO:
-                if Directorio.query.filter_by(project=d["project"], maint_contact=d.get("maint_contact")).first():
+                exists = Directorio.query.filter_by(
+                    project=d["project"], maint_contact=d.get("maint_contact")
+                ).first()
+                if exists:
                     continue
                 db.session.add(Directorio(
                     project=d["project"],
@@ -195,7 +191,4 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Directorio: {Directorio.query.count()}")
 
-            click.echo("\n🎉 Seeding completo.\n")
-            click.echo("Usuarios de prueba:")
-            for u in DEFAULT_USERS:
-                click.echo(f"  • {u['email']:35} {u['password']:20} ({u['role']})")
+            click.echo("\n🎉 Seeding completo.")
