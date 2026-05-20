@@ -19,7 +19,8 @@ const PLATFORMS = ['SUNGROW', 'SOLIS', 'HUAWEI', 'SMA', 'ENNEXOS', 'FUSION', 'SK
 
 const empty = {
   platform: '', num: '', site: '', client: '', code: '',
-  priority: '', notes: '', incDate: '', errCode: '', classification: '',
+  priority: '', notes: '', incDate: '', errCode: '',
+  classification: '', equipment: '',
   problem: '', cause: '', solution: '', ticketAlta: 'NO', ticketDate: '',
   responsible: '', comments: '',
   // sub-form de ticket inline
@@ -27,6 +28,18 @@ const empty = {
   _ticketTitle: '', _ticketAssigned: '', _ticketDueDate: '',
   _ticketTipo: 'Remota', _ticketDescription: '',
 };
+
+// Deriva plataforma desde el campo platform de Pólizas (texto libre → marca normalizada)
+function normalizePlatform(s) {
+  if (!s) return '';
+  const k = s.toUpperCase();
+  if (k.includes('SUNGROW')) return 'SUNGROW';
+  if (k.includes('SOLIS')) return 'SOLIS';
+  if (k.includes('HUAWEI') || k.includes('FUSION')) return 'HUAWEI';
+  if (k.includes('SMA') || k.includes('ENNEX')) return 'SMA';
+  if (k.includes('SKYCONTROL')) return 'SKYCONTROL';
+  return k;
+}
 
 export default function Incidencias() {
   const { hasRole } = useAuth();
@@ -94,6 +107,7 @@ export default function Incidencias() {
       ...(match
         ? {
             classification: match.classification || f.classification,
+            equipment: match.equipment || f.equipment,
             problem: match.problem || f.problem,
             cause: match.cause || f.cause,
             solution: match.solution || f.solution,
@@ -112,12 +126,13 @@ export default function Incidencias() {
         (form.site && x.project?.toLowerCase() === form.site.toLowerCase())
     );
     if (p) {
+      const newPlatform = normalizePlatform(p.platform);
       setForm((f) => ({
         ...f,
         site: f.site || p.project,
         code: f.code || p.code,
         client: f.client || p.grupo,
-        platform: f.platform || (p.platform || '').toUpperCase(),
+        platform: newPlatform || f.platform,
       }));
       toast('Datos cargados desde la póliza');
     }
@@ -287,8 +302,8 @@ export default function Incidencias() {
               {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
             </datalist>
           </FormRow>
-          <FormRow label="Cliente (auto)">
-            <input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
+          <FormRow label="Cliente">
+            <input value={form.client} readOnly className="readonly-auto" />
           </FormRow>
 
           {/* ── CÓDIGO DE ERROR (dropdown filtrado por plataforma) ── */}
@@ -302,25 +317,23 @@ export default function Incidencias() {
               ))}
             </select>
           </FormRow>
-          <FormRow label="Prioridad (auto)">
-            <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-              <option value="">—</option>
-              {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
-            </select>
+          <FormRow label="Prioridad">
+            <input value={form.priority} readOnly className="readonly-auto" />
           </FormRow>
 
-          <FormRow label="Clasificación (auto)">
-            <input value={form.classification} onChange={(e) => setForm({ ...form, classification: e.target.value })} />
+          <FormRow label="Equipo">
+            <input value={form.equipment} readOnly className="readonly-auto"
+              placeholder="Se llena al elegir código de error" />
           </FormRow>
-          <FormRow label="Problema (auto)">
-            <input value={form.problem} onChange={(e) => setForm({ ...form, problem: e.target.value })} />
+          <FormRow label="Problema">
+            <input value={form.problem} readOnly className="readonly-auto" />
           </FormRow>
 
-          <FormRow label="Causa Posible (auto)" full>
-            <textarea rows="2" value={form.cause} onChange={(e) => setForm({ ...form, cause: e.target.value })} />
+          <FormRow label="Causa Posible" full>
+            <textarea rows="2" value={form.cause} readOnly className="readonly-auto" />
           </FormRow>
-          <FormRow label="Solución (auto)" full>
-            <textarea rows="2" value={form.solution} onChange={(e) => setForm({ ...form, solution: e.target.value })} />
+          <FormRow label="Solución" full>
+            <textarea rows="2" value={form.solution} readOnly className="readonly-auto" />
           </FormRow>
 
           <FormRow label="Notas de Monitoreo" full>

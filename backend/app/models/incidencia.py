@@ -8,25 +8,26 @@ class Incidencia(db.Model):
     __tablename__ = "incidencias"
 
     id = db.Column(db.Integer, primary_key=True)
-    platform = db.Column(db.String(60), index=True)        # SUNGROW, SOLIS, ENNEXOS, FUSION, etc.
-    num = db.Column(db.Integer)                            # Número correlativo
+    platform = db.Column(db.String(60), index=True)
+    num = db.Column(db.Integer)
     site = db.Column(db.String(200), nullable=False, index=True)
     client = db.Column(db.String(120), index=True)
-    code = db.Column(db.String(80), index=True)            # Código de proyecto
-    priority = db.Column(db.String(20), index=True)        # Critico, Alta, Intermedia, Baja
+    code = db.Column(db.String(80), index=True)
+    priority = db.Column(db.String(20), index=True)
     notes = db.Column(db.Text)
-    inc_date = db.Column(db.Date, index=True)              # Fecha incidencia
-    err_code = db.Column(db.String(20))                    # Código de error del fabricante
-    classification = db.Column(db.String(60))              # INVERSOR, STRING, COMUNICACIÓN, etc.
+    inc_date = db.Column(db.Date, index=True)
+    err_code = db.Column(db.String(20))
+    classification = db.Column(db.String(60))
+    equipment = db.Column(db.String(120))
     problem = db.Column(db.String(120))
     cause = db.Column(db.Text)
     solution = db.Column(db.Text)
-    ticket_alta = db.Column(db.String(10))                 # SI / NO
+    ticket_alta = db.Column(db.String(10))
     ticket_date = db.Column(db.Date)
     responsible = db.Column(db.String(120))
     comments = db.Column(db.Text)
     last_mod = db.Column(db.Date)
-    status = db.Column(db.String(20), default="abierta", index=True)  # abierta, cerrada
+    status = db.Column(db.String(20), default="abierta", index=True)
     closed_at = db.Column(db.DateTime)
     closed_by = db.Column(db.String(120))
     closed_by_email = db.Column(db.String(180))
@@ -53,6 +54,7 @@ class Incidencia(db.Model):
             "incDate": self.inc_date.isoformat() if self.inc_date else None,
             "errCode": self.err_code,
             "classification": self.classification,
+            "equipment": self.equipment,
             "problem": self.problem,
             "cause": self.cause,
             "solution": self.solution,

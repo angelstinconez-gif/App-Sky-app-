@@ -199,8 +199,11 @@ export default function Tickets() {
             </select>
           </FormRow>
 
-          <FormRow label="Asignado a (usuario o cuadrilla)">
-            <select value={form.assignedTo} onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}>
+          <FormRow label={`Asignado a${editingId && !hasRole('admin') ? ' (sólo admin puede cambiar)' : ''}`}>
+            <select value={form.assignedTo}
+              disabled={editingId && !hasRole('admin')}
+              className={editingId && !hasRole('admin') ? 'readonly-auto' : ''}
+              onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}>
               <option value="">— elegir —</option>
               <optgroup label="👤 Usuarios">
                 {assignees.filter((a) => a.type === 'user').map((a) => (

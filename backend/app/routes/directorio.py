@@ -58,7 +58,7 @@ def _apply(d, data):
 
 @bp.route("", methods=["POST"])
 @jwt_required()
-@role_required("admin", "operator")
+@role_required("admin")
 def create_dir():
     data = request.get_json(silent=True) or {}
     project = parse_str(data.get("project"))
@@ -75,7 +75,7 @@ def create_dir():
 
 @bp.route("/<int:item_id>", methods=["PUT"])
 @jwt_required()
-@role_required("admin", "operator")
+@role_required("admin")
 def update_dir(item_id):
     d = db.session.get(Directorio, item_id)
     if not d:

@@ -51,6 +51,7 @@ export default function Errores() {
         { key: 'tipo', label: 'Tipo' },
         { key: 'problem', label: 'Problema' },
         { key: 'cause', label: 'Causa' },
+        { key: 'solution', label: 'Solución' },
         { key: 'priority', label: 'Prioridad', render: (r) => <span className={`badge ${priorityClass(r.priority)}`}>{r.priority || '—'}</span> },
       ]}
       formFields={[

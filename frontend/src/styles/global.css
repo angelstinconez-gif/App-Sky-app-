@@ -130,6 +130,8 @@ tr:hover td{background:var(--gray-50)}
 .form-row input,.form-row select,.form-row textarea{font-family:var(--font);font-size:13px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius);background:var(--white);color:var(--gray-700);outline:none}
 .form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--sky)}
 .form-row textarea{resize:vertical;min-height:60px}
+.form-row .readonly-auto{background:#F1F5F9;color:var(--gray-600);cursor:not-allowed;border-style:dashed}
+.form-row .readonly-auto:focus{border-color:var(--gray-300)}
 
 /* ── LOGIN ── */
 .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);display:flex;align-items:center;justify-content:center;z-index:9999}

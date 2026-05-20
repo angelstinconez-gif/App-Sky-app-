@@ -81,6 +81,15 @@ def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────
 #  Dispatcher de alto nivel
 # ──────────────────────────────────────────────────────────────
+def notify_admins(event_type: str, title: str, body: str, related_type: str = None, related_id: int = None):
+    """Notifica a TODOS los usuarios con rol admin (útil cuando otros roles cambian datos sensibles)."""
+    from app.models.user import User
+    admin_ids = [u.id for u in User.query.filter_by(role="admin", active=True).all()]
+    if not admin_ids:
+        return 0
+    return notify_event(event_type, title, body, related_type, related_id, user_ids=admin_ids)
+
+
 def notify_event(event_type: str, title: str, body: str, related_type: str = None, related_id: int = None, user_ids: list = None):
     """
     Envía notificación a todos los suscriptores de un evento.

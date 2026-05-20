@@ -65,6 +65,7 @@ def _apply_payload(inc: Incidencia, data: dict):
     inc.inc_date = parse_date(data.get("incDate"))
     inc.err_code = parse_str(data.get("errCode"))
     inc.classification = parse_str(data.get("classification"))
+    inc.equipment = parse_str(data.get("equipment"))
     inc.problem = parse_str(data.get("problem"))
     inc.cause = parse_str(data.get("cause"))
     inc.solution = parse_str(data.get("solution"))
