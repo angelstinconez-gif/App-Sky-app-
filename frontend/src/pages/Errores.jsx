@@ -39,7 +39,7 @@ export default function Errores() {
       writeRoles={['admin']}
       deleteRoles={['admin']}
       extraActions={extra}
-      helpText="Códigos por fabricante (HUAWEI, SUNGROW, SOLIS, SMA). Descarga la plantilla con el catálogo completo y luego impórtala si tu base aparece vacía."
+      helpText="Códigos por fabricante (HUAWEI, SUNGROW, SOLIS, SMA). Si la base aparece vacía: 1) Click '📄 Plantilla / catálogo completo' para bajar el Excel con los 129 códigos, 2) Click '📥 Importar Excel' y selecciona el archivo recién descargado."
       filters={[
         { key: 'brand', label: 'marcas', options: BRANDS },
         { key: 'classification', label: 'clasificaciones', options: CLASSIFICATIONS },
