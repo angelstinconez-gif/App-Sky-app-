@@ -9,7 +9,9 @@ import {
   polizasApi,
   ticketsApi,
   assigneesApi,
+  importarApi,
 } from '../api/endpoints';
+import ImportButton from '../components/ImportButton';
 import { fmtDate, priorityClass, statusClass, downloadXLSX } from '../utils/format';
 
 const PRIORITIES = ['Critico', 'Alta', 'Intermedia', 'Baja'];
@@ -219,7 +221,13 @@ export default function Incidencias() {
       <div className="section-header">
         <h2>Incidencias</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{items.length} registros</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {hasRole('admin') && (
+            <>
+              <a className="btn btn-sm" href="/templates/incidencias_template.xlsx" download>📄 Plantilla</a>
+              <ImportButton uploader={importarApi.incidencias} onDone={load} />
+            </>
+          )}
           <button className="btn btn-sm" onClick={exportXlsx}>⬇ Exportar</button>
           {canWrite && <button className="btn btn-sm btn-primary" onClick={onNew}>+ Nueva</button>}
         </div>

@@ -18,7 +18,13 @@ export default function Mantenimiento() {
   }, []);
 
   const extra = hasRole('admin') ? (
-    <ImportButton uploader={importarApi.mantenimiento} onDone={() => setReloadKey((k) => k + 1)} />
+    <>
+      <a className="btn btn-sm" href="/templates/mantenimiento_template.xlsx" download
+         title="Descarga la plantilla con columnas y ejemplo">
+        📄 Plantilla
+      </a>
+      <ImportButton uploader={importarApi.mantenimiento} onDone={() => setReloadKey((k) => k + 1)} />
+    </>
   ) : null;
 
   // Las opciones de cuadrilla salen del catálogo de assignees

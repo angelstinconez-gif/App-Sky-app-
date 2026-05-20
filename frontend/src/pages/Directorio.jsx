@@ -12,7 +12,13 @@ export default function Directorio() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const extra = hasRole('admin') ? (
-    <ImportButton uploader={importarApi.directorio} onDone={() => setReloadKey((k) => k + 1)} />
+    <>
+      <a className="btn btn-sm" href="/templates/directorio_full.xlsx" download
+         title="Descarga el directorio completo extraído del Excel original (156 contactos)">
+        📄 Plantilla / directorio completo
+      </a>
+      <ImportButton uploader={importarApi.directorio} onDone={() => setReloadKey((k) => k + 1)} />
+    </>
   ) : null;
 
   return (

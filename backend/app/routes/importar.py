@@ -236,10 +236,14 @@ def import_errores():
         e = ErrorCatalog(
             brand=brand,
             code=code,
+            equipment=parse_str(g(row, "equipment") or g(row, "equipo")),
             classification=parse_str(g(row, "classification") or g(row, "clasificacion")),
-            problem=parse_str(g(row, "problem") or g(row, "problema")),
-            cause=parse_str(g(row, "cause") or g(row, "causa")),
-            solution=parse_str(g(row, "solution") or g(row, "solucion")),
+            tipo=parse_str(g(row, "tipo") or g(row, "type")),
+            problem=parse_str(g(row, "problem") or g(row, "problema") or g(row, "alarma")),
+            cause=parse_str(g(row, "cause") or g(row, "causa") or g(row, "causa probable")),
+            solution=parse_str(g(row, "solution") or g(row, "solucion") or g(row, "solucion posible")),
+            impact=parse_str(g(row, "impact") or g(row, "impacto") or g(row, "impacto operativo")),
+            source_url=parse_str(g(row, "source_url") or g(row, "url") or g(row, "fuente url")),
             priority=parse_str(g(row, "priority") or g(row, "prioridad")),
         )
         db.session.add(e)

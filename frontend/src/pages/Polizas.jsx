@@ -10,8 +10,14 @@ export default function Polizas() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const extra = hasRole('admin') ? (
-    <ImportButton uploader={importarApi.polizas} onDone={() => setReloadKey((k) => k + 1)}
-      label="📥 Importar pólizas" />
+    <>
+      <a className="btn btn-sm" href="/templates/polizas_template.xlsx" download
+         title="Descarga la plantilla con columnas y ejemplo">
+        📄 Plantilla
+      </a>
+      <ImportButton uploader={importarApi.polizas} onDone={() => setReloadKey((k) => k + 1)}
+        label="📥 Importar pólizas" />
+    </>
   ) : null;
 
   return (
