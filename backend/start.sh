@@ -13,8 +13,11 @@ flask upgrade-schema || echo "  (no hubo cambios o falló silenciosamente)"
 echo "▶ Creando admin si no existe..."
 flask create-admin || echo "  (admin ya existe)"
 
-echo "▶ Cargando seeds (errores + directorio + pólizas demo)..."
+echo "▶ Cargando seeds (errores + directorio + pólizas plantas)..."
 flask seed-all --replace-errors || echo "  (algo falló en seeds, revisa logs)"
+
+echo "▶ Limpiando duplicados..."
+flask dedupe || echo "  (no se pudo deduplicar — continuando)"
 
 echo "▶ Arrancando Gunicorn en puerto ${PORT:-5000}..."
 exec gunicorn --workers 2 --timeout 120 --bind "0.0.0.0:${PORT:-5000}" wsgi:app

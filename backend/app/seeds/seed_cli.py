@@ -1,4 +1,4 @@
-"""Comandos CLI Flask: flask seed-all, flask init-db, flask create-admin, flask upgrade-schema."""
+"""Comandos CLI Flask: init-db, upgrade-schema, create-admin, seed-all, dedupe."""
 import os
 
 import click
@@ -10,6 +10,7 @@ from app.models.poliza import Poliza
 from app.models.incidencia import Incidencia
 from app.models.garantia import Garantia
 from app.models.directorio import Directorio
+from app.models.ticket import Ticket
 from app.seeds.seed_data import (
     DEFAULT_USERS,
     SEED_POLIZAS,
@@ -139,9 +140,36 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Errores: {ErrorCatalog.query.count()}")
 
-            for p in SEED_POLIZAS:
-                if p.get("code") and Poliza.query.filter_by(code=p["code"]).first():
+            # Pólizas: combina demo + catálogo completo (247 plantas del Excel)
+            try:
+                from app.seeds.polizas_full import FULL_POLIZAS
+            except ImportError:
+                FULL_POLIZAS = []
+            all_polizas = (FULL_POLIZAS or []) + SEED_POLIZAS  # primero los del Excel
+
+            for p in all_polizas:
+                key_code = p.get("code")
+                key_proj = p.get("project")
+                existing = None
+                if key_code:
+                    existing = Poliza.query.filter_by(code=key_code).first()
+                if not existing and key_proj:
+                    existing = Poliza.query.filter_by(project=key_proj).first()
+
+                if existing:
+                    # UPSERT — actualiza campos vacíos sin sobrescribir info válida
+                    if p.get("grupo") and not existing.grupo: existing.grupo = p["grupo"]
+                    if p.get("tarifa") and not existing.tarifa: existing.tarifa = p["tarifa"]
+                    if p.get("platform") and not existing.platform: existing.platform = p["platform"]
+                    if p.get("sysStart") and not existing.sys_start: existing.sys_start = parse_date(p["sysStart"])
+                    if p.get("polStart") and not existing.pol_start: existing.pol_start = parse_date(p["polStart"])
+                    if p.get("polEnd") and not existing.pol_end: existing.pol_end = parse_date(p["polEnd"])
+                    if p.get("status") and not existing.status: existing.status = p["status"]
+                    if p.get("zona") and not existing.zona: existing.zona = p["zona"]
+                    if p.get("cuadrilla") and not existing.cuadrilla: existing.cuadrilla = p["cuadrilla"]
+                    if p.get("poliza") and not existing.poliza: existing.poliza = p["poliza"]
                     continue
+
                 db.session.add(Poliza(
                     item=p.get("item"), grupo=p.get("grupo"), code=p.get("code"),
                     project=p["project"], tarifa=p.get("tarifa"),
@@ -153,7 +181,7 @@ def register_seed_cli(app):
                     zona=p.get("zona"), cuadrilla=p.get("cuadrilla"),
                 ))
             db.session.commit()
-            click.echo(f"✅ Pólizas: {Poliza.query.count()}")
+            click.echo(f"✅ Pólizas (con plantas del Excel): {Poliza.query.count()}")
 
             for i in SEED_INCIDENCIAS:
                 db.session.add(Incidencia(
@@ -216,3 +244,87 @@ def register_seed_cli(app):
             click.echo(f"✅ Directorio: {Directorio.query.count()}")
 
             click.echo("\n🎉 Seeding completo.")
+
+    # ──────────────────────────────────────────────────────────
+    #  flask dedupe — elimina duplicados manteniendo el id más bajo
+    # ──────────────────────────────────────────────────────────
+    @app.cli.command("dedupe")
+    def dedupe():
+        """Elimina filas duplicadas en pólizas, directorio, incidencias, tickets y garantías."""
+        with app.app_context():
+            total = 0
+
+            def _norm(s):
+                return (s or "").strip().lower() if isinstance(s, str) else s
+
+            # ── Pólizas: por code (no nulo); secundario por project ──
+            seen_code, seen_proj, to_del = set(), set(), []
+            for p in Poliza.query.order_by(Poliza.id.asc()).all():
+                c = _norm(p.code)
+                pr = _norm(p.project)
+                if c and c in seen_code:
+                    to_del.append(p)
+                elif not c and pr and pr in seen_proj:
+                    to_del.append(p)
+                else:
+                    if c: seen_code.add(c)
+                    if pr: seen_proj.add(pr)
+            for p in to_del:
+                db.session.delete(p)
+            click.echo(f"  Pólizas: -{len(to_del)}")
+            total += len(to_del)
+
+            # ── Directorio: por (project, maint_contact) ──
+            seen, to_del = set(), []
+            for d in Directorio.query.order_by(Directorio.id.asc()).all():
+                k = (_norm(d.project), _norm(d.maint_contact))
+                if k in seen:
+                    to_del.append(d)
+                else:
+                    seen.add(k)
+            for d in to_del:
+                db.session.delete(d)
+            click.echo(f"  Directorio: -{len(to_del)}")
+            total += len(to_del)
+
+            # ── Incidencias: por (site, code, err_code, inc_date) ──
+            seen, to_del = set(), []
+            for i in Incidencia.query.order_by(Incidencia.id.asc()).all():
+                k = (_norm(i.site), _norm(i.code), _norm(i.err_code), i.inc_date)
+                if k in seen:
+                    to_del.append(i)
+                else:
+                    seen.add(k)
+            for i in to_del:
+                db.session.delete(i)
+            click.echo(f"  Incidencias: -{len(to_del)}")
+            total += len(to_del)
+
+            # ── Tickets: por (title, site, open_date) ──
+            seen, to_del = set(), []
+            for t in Ticket.query.order_by(Ticket.id.asc()).all():
+                k = (_norm(t.title), _norm(t.site), t.open_date)
+                if k in seen:
+                    to_del.append(t)
+                else:
+                    seen.add(k)
+            for t in to_del:
+                db.session.delete(t)
+            click.echo(f"  Tickets: -{len(to_del)}")
+            total += len(to_del)
+
+            # ── Garantías: por (project, ticket, error) ──
+            seen, to_del = set(), []
+            for g in Garantia.query.order_by(Garantia.id.asc()).all():
+                k = (_norm(g.project), _norm(g.ticket), _norm(g.error))
+                if k in seen:
+                    to_del.append(g)
+                else:
+                    seen.add(k)
+            for g in to_del:
+                db.session.delete(g)
+            click.echo(f"  Garantías: -{len(to_del)}")
+            total += len(to_del)
+
+            db.session.commit()
+            click.echo(f"\n✅ {total} duplicados eliminados.")

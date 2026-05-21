@@ -105,7 +105,7 @@ export default function Tickets() {
   const columns = useMemo(() => [
     { key: 'id', label: '#' },
     { key: 'title', label: 'Título' },
-    { key: 'site', label: 'Sitio' },
+    { key: 'site', label: 'Proyecto' },
     { key: 'client', label: 'Cliente' },
     { key: 'projectCode', label: 'Código' },
     { key: 'priority', label: 'Prioridad', render: (r) => <span className={`badge ${priorityClass(r.priority)}`}>{r.priority || '—'}</span> },
@@ -174,12 +174,13 @@ export default function Tickets() {
               ))}
             </datalist>
             <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
-              💡 Tip: al elegir un proyecto del listado se auto-llenan cliente, sitio y código.
+              💡 Tip: al elegir un proyecto del listado se auto-llenan cliente, proyecto y código.
             </div>
           </FormRow>
 
-          <FormRow label="Sitio (auto)">
-            <input value={form.site} onChange={(e) => setForm({ ...form, site: e.target.value })} />
+          <FormRow label="Proyecto">
+            <input value={form.site} readOnly className="readonly-auto"
+              onChange={(e) => setForm({ ...form, site: e.target.value })} />
           </FormRow>
           <FormRow label="Cliente (auto)">
             <input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />

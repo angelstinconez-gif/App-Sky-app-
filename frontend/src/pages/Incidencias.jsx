@@ -120,11 +120,22 @@ export default function Incidencias() {
   // ── Cuando cambia el sitio/código de proyecto → buscar en Pólizas y auto-llenar ──
   const onProjectAutofill = () => {
     if (!form.code && !form.site) return;
-    const p = polizas.find(
+    const codeU = (form.code || '').toUpperCase();
+    const siteL = (form.site || '').toLowerCase();
+    // 1. Coincidencia exacta primero
+    let p = polizas.find(
       (x) =>
-        (form.code && x.code?.toUpperCase() === form.code.toUpperCase()) ||
-        (form.site && x.project?.toLowerCase() === form.site.toLowerCase())
+        (codeU && x.code?.toUpperCase() === codeU) ||
+        (siteL && x.project?.toLowerCase() === siteL)
     );
+    // 2. Si no, coincidencia parcial (substring) — útil mientras se escribe
+    if (!p) {
+      p = polizas.find(
+        (x) =>
+          (codeU && x.code?.toUpperCase().includes(codeU) && codeU.length >= 3) ||
+          (siteL && x.project?.toLowerCase().includes(siteL) && siteL.length >= 3)
+      );
+    }
     if (p) {
       const newPlatform = normalizePlatform(p.platform);
       setForm((f) => ({
@@ -206,7 +217,7 @@ export default function Incidencias() {
   const columns = useMemo(() => [
     { key: 'id', label: '#' },
     { key: 'platform', label: 'Plataforma' },
-    { key: 'site', label: 'Sitio' },
+    { key: 'site', label: 'Proyecto' },
     { key: 'client', label: 'Cliente' },
     { key: 'priority', label: 'Prioridad', render: (r) => <span className={`badge ${priorityClass(r.priority)}`}>{r.priority || '—'}</span> },
     { key: 'errCode', label: 'Error' },
@@ -294,10 +305,11 @@ export default function Incidencias() {
               </datalist>
             </div>
           </FormRow>
-          <FormRow label="Sitio *">
+          <FormRow label="Proyecto *">
             <input list="poliza-projects" value={form.site}
               onChange={(e) => setForm({ ...form, site: e.target.value })}
-              onBlur={onProjectAutofill} />
+              onBlur={onProjectAutofill}
+              placeholder="Empieza a escribir el nombre o código del proyecto" />
             <datalist id="poliza-projects">
               {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
             </datalist>
