@@ -29,78 +29,71 @@ def register_seed_cli(app):
 
     @app.cli.command("upgrade-schema")
     def upgrade_schema():
-        """Recrea/altera tablas para igualar el esquema actual sin perder datos cuando es posible."""
+        """Recrea/altera tablas para igualar el esquema actual. Cada paso es independiente."""
         from sqlalchemy import inspect, text
         from app.models.notification import NotificationSubscription, NotificationLog
 
+        def _try(label, fn):
+            try:
+                fn()
+            except Exception as e:
+                click.echo(f"  ⚠️  {label} falló: {e}")
+
         with app.app_context():
             insp = inspect(db.engine)
-            tables_to_recreate = []
-            altered = 0
 
-            # directorio — recreación total (cambio masivo de esquema)
-            if insp.has_table("directorio"):
-                cols = {c["name"] for c in insp.get_columns("directorio")}
-                if "client_company" not in cols or "maint_contact_2" not in cols:
-                    tables_to_recreate.append(Directorio.__table__)
-
-            # errores_catalogo — recreación total
-            if insp.has_table("errores_catalogo"):
-                cols = {c["name"] for c in insp.get_columns("errores_catalogo")}
-                if "equipment" not in cols or "source_url" not in cols:
-                    tables_to_recreate.append(ErrorCatalog.__table__)
-
-            # incidencias — sólo añadir columna 'equipment' si falta (preservando datos)
-            if insp.has_table("incidencias"):
-                cols = {c["name"] for c in insp.get_columns("incidencias")}
-                if "equipment" not in cols:
+            # ── ALTER TABLE (añadir columnas sin perder datos) ──
+            def _add_col(table, col, ddl):
+                if not insp.has_table(table):
+                    return
+                cols = {c["name"] for c in insp.get_columns(table)}
+                if col not in cols:
                     with db.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE incidencias ADD COLUMN equipment VARCHAR(120)"))
-                    altered += 1
-                    click.echo("➕ Añadida columna 'equipment' a incidencias")
+                        conn.execute(text(ddl))
+                    click.echo(f"  ➕ {table}.{col}")
 
-            # notification_log — añadir 'read_at' para el buzón in-app
-            if insp.has_table("notification_log"):
-                cols = {c["name"] for c in insp.get_columns("notification_log")}
-                if "read_at" not in cols:
-                    with db.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE notification_log ADD COLUMN read_at TIMESTAMP"))
-                    altered += 1
-                    click.echo("➕ Añadida columna 'read_at' a notification_log")
+            _try("incidencias.equipment", lambda: _add_col(
+                "incidencias", "equipment",
+                "ALTER TABLE incidencias ADD COLUMN equipment VARCHAR(120)"
+            ))
+            _try("notification_log.read_at", lambda: _add_col(
+                "notification_log", "read_at",
+                "ALTER TABLE notification_log ADD COLUMN read_at TIMESTAMP"
+            ))
+            _try("cuadrillas.lider_id", lambda: _add_col(
+                "cuadrillas", "lider_id",
+                "ALTER TABLE cuadrillas ADD COLUMN lider_id INTEGER"
+            ))
 
-            # cuadrillas — añadir 'lider_id' (FK a tecnicos)
-            if insp.has_table("cuadrillas"):
-                cols = {c["name"] for c in insp.get_columns("cuadrillas")}
-                if "lider_id" not in cols:
-                    with db.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE cuadrillas ADD COLUMN lider_id INTEGER"))
-                    altered += 1
-                    click.echo("➕ Añadida columna 'lider_id' a cuadrillas")
+            # ── Recrear tablas con cambio masivo de esquema ──
+            def _maybe_recreate(model, key_cols):
+                if not insp.has_table(model.__tablename__):
+                    return
+                cols = {c["name"] for c in insp.get_columns(model.__tablename__)}
+                if any(c not in cols for c in key_cols):
+                    click.echo(f"  🔄 Recreando {model.__tablename__}")
+                    model.__table__.drop(db.engine)
+                    model.__table__.create(db.engine)
 
-            # tecnicos — tabla nueva
+            _try("directorio recreate", lambda: _maybe_recreate(
+                Directorio, ["client_company", "maint_contact_2"]
+            ))
+            _try("errores_catalogo recreate", lambda: _maybe_recreate(
+                ErrorCatalog, ["equipment", "source_url"]
+            ))
+
+            # ── Crear tablas nuevas ──
+            def _create_if_missing(model):
+                if not insp.has_table(model.__tablename__):
+                    model.__table__.create(db.engine)
+                    click.echo(f"  ➕ Creada: {model.__tablename__}")
+
             from app.models.tecnico import Tecnico as _Tecnico
-            if not insp.has_table("tecnicos"):
-                _Tecnico.__table__.create(db.engine)
-                click.echo("➕ Creada: tecnicos")
+            _try("crear tecnicos", lambda: _create_if_missing(_Tecnico))
+            _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
+            _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
 
-            # Recrear tablas que cambiaron mucho
-            for t in tables_to_recreate:
-                click.echo(f"🔄 Recreando tabla: {t.name}")
-                t.drop(db.engine)
-                t.create(db.engine)
-
-            # Tablas nuevas
-            if not insp.has_table("notification_subscriptions"):
-                NotificationSubscription.__table__.create(db.engine)
-                click.echo("➕ Creada: notification_subscriptions")
-            if not insp.has_table("notification_log"):
-                NotificationLog.__table__.create(db.engine)
-                click.echo("➕ Creada: notification_log")
-
-            if not tables_to_recreate and not altered:
-                click.echo("✅ Esquema ya está al día.")
-            else:
-                click.echo(f"✅ {len(tables_to_recreate)} recreada(s), {altered} alterada(s).")
+            click.echo("✅ upgrade-schema completado.")
 
     @app.cli.command("create-admin")
     def create_admin():

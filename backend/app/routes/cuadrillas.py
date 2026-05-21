@@ -41,20 +41,20 @@ def _apply(c: Cuadrilla, data: dict):
 
     # Líder: si llega liderId, buscar el técnico y auto-llenar nombre + teléfono
     lider_id = parse_int(data.get("liderId"))
+    tec = None
     if lider_id:
-        tec = db.session.get(Tecnico, lider_id)
-        if tec:
-            c.lider_id = tec.id
-            c.lider = tec.nombre
-            c.telefono = tec.telefono or parse_str(data.get("telefono"))
-        else:
-            c.lider_id = None
-            c.lider = parse_str(data.get("lider"))
-            c.telefono = parse_str(data.get("telefono"))
+        try:
+            tec = db.session.get(Tecnico, lider_id)
+        except Exception:
+            tec = None
+    if tec:
+        c.lider_id = tec.id
+        c.lider = tec.nombre
+        c.telefono = tec.telefono or parse_str(data.get("telefono"))
     else:
-        c.lider_id = None
-        c.lider = parse_str(data.get("lider"))
-        c.telefono = parse_str(data.get("telefono"))
+        c.lider_id = lider_id if lider_id else None
+        c.lider = parse_str(data.get("lider")) or c.lider
+        c.telefono = parse_str(data.get("telefono")) or c.telefono
 
     # Miembros: aceptamos lista de IDs (preferido) o texto libre
     if "miembrosIds" in data:

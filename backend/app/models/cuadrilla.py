@@ -12,7 +12,7 @@ class Cuadrilla(db.Model):
     nombre = db.Column(db.String(120), nullable=False, index=True)
     zona = db.Column(db.String(80), index=True)
     lider = db.Column(db.String(120))                     # texto: nombre del líder (compat)
-    lider_id = db.Column(db.Integer, db.ForeignKey("tecnicos.id", ondelete="SET NULL"))
+    lider_id = db.Column(db.Integer)                      # id del técnico líder (sin FK estricta)
     miembros = db.Column(db.Text)                         # JSON: [id1, id2,...] o texto libre
     telefono = db.Column(db.String(60))                   # tel del líder (auto-fill)
     notes = db.Column(db.Text)
@@ -32,15 +32,18 @@ class Cuadrilla(db.Model):
         return []
 
     def to_dict(self):
-        from app.models.tecnico import Tecnico  # evitar import circular
-
         miembro_ids = self._miembros_parsed()
         miembros_data = []
-        if miembro_ids:
-            for t in Tecnico.query.filter(Tecnico.id.in_(miembro_ids)).all():
-                miembros_data.append({
-                    "id": t.id, "nombre": t.nombre, "rol": t.rol, "telefono": t.telefono,
-                })
+        try:
+            from app.models.tecnico import Tecnico  # evitar import circular
+            if miembro_ids:
+                for t in Tecnico.query.filter(Tecnico.id.in_(miembro_ids)).all():
+                    miembros_data.append({
+                        "id": t.id, "nombre": t.nombre, "rol": t.rol, "telefono": t.telefono,
+                    })
+        except Exception:
+            # Si la tabla aún no existe (esquema viejo), devolvemos sólo los IDs
+            pass
 
         return {
             "id": self.id,

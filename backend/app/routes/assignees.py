@@ -15,7 +15,10 @@ def list_assignees():
     """Devuelve usuarios activos + cuadrillas + técnicos, etiquetados con su tipo."""
     users = User.query.filter_by(active=True).order_by(User.name).all()
     cuads = Cuadrilla.query.order_by(Cuadrilla.zona, Cuadrilla.nombre).all()
-    tecs = Tecnico.query.filter_by(activo=True).order_by(Tecnico.nombre).all()
+    try:
+        tecs = Tecnico.query.filter_by(activo=True).order_by(Tecnico.nombre).all()
+    except Exception:
+        tecs = []  # tabla aún no creada
 
     out = [{
         "id": f"user-{u.id}",

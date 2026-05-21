@@ -1,4 +1,6 @@
 """App factory — instancia Flask, registra extensiones y blueprints."""
+import os
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -106,7 +108,22 @@ def create_app(config_class="config.Config"):
 
     @app.errorhandler(500)
     def internal(e):
-        return jsonify(error="internal_error", message="Error interno"), 500
+        import traceback
+        tb = traceback.format_exc()
+        app.logger.error("Internal error: %s\n%s", e, tb)
+        # En desarrollo (DEBUG=1) devolvemos el mensaje real para depurar.
+        show = app.config.get("DEBUG") or os.environ.get("FLASK_DEBUG") == "1"
+        return jsonify(
+            error="internal_error",
+            message=(str(e) if show else "Error interno"),
+        ), 500
+
+    @app.errorhandler(Exception)
+    def unhandled(e):
+        import traceback
+        tb = traceback.format_exc()
+        app.logger.error("Unhandled exception: %s\n%s", e, tb)
+        return jsonify(error="server_error", message=str(e)), 500
 
     # ── JWT: respuestas JSON ──
     @jwt.unauthorized_loader
