@@ -1,85 +1,134 @@
 import { useEffect, useMemo, useState } from 'react';
-import { eventosApi } from '../api/endpoints';
+import { eventosApi, mantenimientoApi } from '../api/endpoints';
 import { fmtDate } from '../utils/format';
 
-export default function Calendario() {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [cursor, setCursor] = useState(() => new Date());
+const VIEWS = [
+  { id: 'day', label: 'Día' },
+  { id: 'month', label: 'Mes' },
+  { id: 'year', label: 'Año' },
+];
+const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+export default function Calendario() {
+  const [view, setView] = useState('month');
+  const [cursor, setCursor] = useState(() => new Date());
+  const [events, setEvents] = useState([]);
+  const [mants, setMants] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Carga eventos + mantenimientos del año cubierto (suficiente para vista año)
   useEffect(() => {
     const y = cursor.getFullYear();
-    const m = cursor.getMonth();
-    const start = new Date(y, m - 1, 1).toISOString().slice(0, 10);
-    const end = new Date(y, m + 2, 0).toISOString().slice(0, 10);
+    const start = `${y}-01-01`;
+    const end = `${y}-12-31`;
     setLoading(true);
-    eventosApi.list({ start, end }).then(setEvents).finally(() => setLoading(false));
-  }, [cursor]);
+    Promise.all([
+      eventosApi.list({ start, end }).catch(() => []),
+      mantenimientoApi.list().catch(() => []),
+    ]).then(([ev, mt]) => {
+      setEvents(ev || []);
+      setMants((mt || []).filter((m) => m.fecha_programada || m.fechaProgramada));
+    }).finally(() => setLoading(false));
+  }, [cursor.getFullYear()]);
 
-  const grid = useMemo(() => buildMonth(cursor, events), [cursor, events]);
+  // Unifica eventos + mantenimientos en una lista normalizada
+  const allItems = useMemo(() => {
+    const evs = events.map((e) => ({
+      id: `e-${e.id}`, date: e.eventDate, title: e.title, type: e.eventType || 'evento',
+      color: e.color || '#0EA5E9',
+    }));
+    const ms = mants.map((m) => ({
+      id: `m-${m.id}`,
+      date: (m.fecha_programada || m.fechaProgramada || '').slice(0, 10),
+      title: `${m.tipo || 'Mant.'} — ${m.project || m.proyecto || ''}`,
+      type: 'mantenimiento',
+      color: m.estado === 'Ejecutado' ? '#16a34a' : m.estado === 'Programado' ? '#f59e0b' : '#0EA5E9',
+    })).filter((x) => x.date);
+    return [...evs, ...ms];
+  }, [events, mants]);
+
+  const onMonthSelect = (idx) => setCursor(new Date(cursor.getFullYear(), idx, 1));
+  const onYearChange = (y) => setCursor(new Date(parseInt(y, 10), cursor.getMonth(), 1));
+  const navDay = (delta) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + delta));
+  const navMonth = (delta) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1));
+  const navYear = (delta) => setCursor(new Date(cursor.getFullYear() + delta, cursor.getMonth(), 1));
+
+  const yearOptions = [];
+  const thisYear = new Date().getFullYear();
+  for (let y = thisYear - 3; y <= thisYear + 5; y++) yearOptions.push(y);
 
   return (
     <div>
       <div className="section-header">
         <h2>Calendario</h2>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button className="btn btn-sm" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>‹</button>
-          <strong style={{ minWidth: 160, textAlign: 'center' }}>
-            {cursor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-          </strong>
-          <button className="btn btn-sm" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>›</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Selector de vista */}
+          <div style={{ display: 'flex', gap: 0, border: '1px solid var(--gray-200, #e5e7eb)', borderRadius: 6, overflow: 'hidden' }}>
+            {VIEWS.map((v) => (
+              <button key={v.id} className="btn btn-sm"
+                style={{
+                  borderRadius: 0, border: 'none',
+                  background: view === v.id ? 'var(--sky, #0EA5E9)' : 'transparent',
+                  color: view === v.id ? '#fff' : 'inherit',
+                }}
+                onClick={() => setView(v.id)}>{v.label}</button>
+            ))}
+          </div>
+
+          {/* Selector de mes y año */}
+          <select className="filter-select" value={cursor.getMonth()} onChange={(e) => onMonthSelect(parseInt(e.target.value, 10))}>
+            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+          <select className="filter-select" value={cursor.getFullYear()} onChange={(e) => onYearChange(e.target.value)}>
+            {yearOptions.map((y) => <option key={y}>{y}</option>)}
+          </select>
+
+          {/* Navegación */}
+          {view === 'day' && <>
+            <button className="btn btn-sm" onClick={() => navDay(-1)}>‹</button>
+            <button className="btn btn-sm" onClick={() => navDay(1)}>›</button>
+          </>}
+          {view === 'month' && <>
+            <button className="btn btn-sm" onClick={() => navMonth(-1)}>‹</button>
+            <button className="btn btn-sm" onClick={() => navMonth(1)}>›</button>
+          </>}
+          {view === 'year' && <>
+            <button className="btn btn-sm" onClick={() => navYear(-1)}>‹</button>
+            <button className="btn btn-sm" onClick={() => navYear(1)}>›</button>
+          </>}
           <button className="btn btn-sm" onClick={() => setCursor(new Date())}>Hoy</button>
         </div>
       </div>
 
+      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+        🟧 Mantenimiento programado · 🟢 Ejecutado · 🟦 Otros eventos
+      </div>
+
       {loading ? <div className="empty"><span className="spinner" /></div> : (
-        <div className="table-wrap" style={{ padding: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
-              <div key={d} style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', padding: 6 }}>{d}</div>
-            ))}
-            {grid.map((cell, i) => (
-              <div key={i} style={{
-                minHeight: 90, padding: 6, borderRadius: 8,
-                background: cell.isCurrentMonth ? 'var(--gray-50)' : 'transparent',
-                opacity: cell.isCurrentMonth ? 1 : 0.4,
-                border: cell.isToday ? '2px solid var(--sky)' : '1px solid var(--gray-100)',
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>
-                  {cell.day}
-                </div>
-                {cell.events.slice(0, 3).map((e) => (
-                  <div key={e.id} title={e.title} style={{
-                    background: e.color || '#0EA5E9', color: '#fff',
-                    fontSize: 10, padding: '2px 4px', borderRadius: 4,
-                    marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{e.title}</div>
-                ))}
-                {cell.events.length > 3 && (
-                  <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>+{cell.events.length - 3} más</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        view === 'month' ? <MonthView cursor={cursor} items={allItems} /> :
+        view === 'year' ? <YearView cursor={cursor} items={allItems} onPick={onMonthSelect} /> :
+        <DayView cursor={cursor} items={allItems} />
       )}
 
       <div style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Próximos eventos</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Próximos en {cursor.getFullYear()}</h3>
         <div className="table-wrap">
           <table>
             <thead>
               <tr><th>Fecha</th><th>Tipo</th><th>Título</th></tr>
             </thead>
             <tbody>
-              {events
-                .filter((e) => new Date(e.eventDate) >= new Date())
-                .sort((a, b) => a.eventDate.localeCompare(b.eventDate))
+              {allItems
+                .filter((e) => e.date >= new Date().toISOString().slice(0, 10))
+                .sort((a, b) => a.date.localeCompare(b.date))
                 .slice(0, 15)
                 .map((e) => (
                   <tr key={e.id}>
-                    <td>{fmtDate(e.eventDate)}</td>
-                    <td>{e.eventType}</td>
+                    <td>{fmtDate(e.date)}</td>
+                    <td><span style={{
+                      background: e.color, color: '#fff', padding: '2px 6px',
+                      borderRadius: 4, fontSize: 10,
+                    }}>{e.type}</span></td>
                     <td>{e.title}</td>
                   </tr>
                 ))}
@@ -91,31 +140,135 @@ export default function Calendario() {
   );
 }
 
-function buildMonth(cursor, events) {
+// ── VISTA MES ─────────────────────────────────────────
+function MonthView({ cursor, items }) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
-  const startDay = (first.getDay() + 6) % 7; // lunes = 0
+  const startDay = (first.getDay() + 6) % 7;
   const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-
+  const today = new Date().toISOString().slice(0, 10);
   const cells = [];
   for (let i = 0; i < startDay; i++) {
     const d = new Date(y, m, -startDay + i + 1);
-    cells.push({ day: d.getDate(), isCurrentMonth: false, isToday: false, events: [] });
+    cells.push({ day: d.getDate(), iso: null, isCurrentMonth: false, events: [] });
   }
   for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(y, m, d);
     const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    cells.push({
-      day: d,
-      isCurrentMonth: true,
-      isToday: date.getTime() === today.getTime(),
-      events: events.filter((e) => e.eventDate === iso),
-    });
+    cells.push({ day: d, iso, isCurrentMonth: true, events: items.filter((e) => e.date === iso) });
   }
-  while (cells.length % 7 !== 0) {
-    cells.push({ day: cells.length, isCurrentMonth: false, isToday: false, events: [] });
+  while (cells.length % 7 !== 0) cells.push({ day: cells.length, iso: null, isCurrentMonth: false, events: [] });
+
+  return (
+    <div className="table-wrap" style={{ padding: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
+          <div key={d} style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', padding: 6 }}>{d}</div>
+        ))}
+        {cells.map((cell, i) => (
+          <div key={i} style={{
+            minHeight: 90, padding: 6, borderRadius: 8,
+            background: cell.isCurrentMonth ? 'var(--gray-50)' : 'transparent',
+            opacity: cell.isCurrentMonth ? 1 : 0.4,
+            border: cell.iso === today ? '2px solid var(--sky, #0EA5E9)' : '1px solid var(--gray-100)',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>
+              {cell.day}
+            </div>
+            {cell.events.slice(0, 3).map((e) => (
+              <div key={e.id} title={e.title} style={{
+                background: e.color, color: '#fff',
+                fontSize: 10, padding: '2px 4px', borderRadius: 4,
+                marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{e.title}</div>
+            ))}
+            {cell.events.length > 3 && (
+              <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>+{cell.events.length - 3} más</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── VISTA AÑO ─────────────────────────────────────────
+function YearView({ cursor, items, onPick }) {
+  const y = cursor.getFullYear();
+  // contar por mes
+  const counts = Array(12).fill(0);
+  items.forEach((e) => {
+    if (e.date?.startsWith(`${y}-`)) {
+      const m = parseInt(e.date.slice(5, 7), 10) - 1;
+      counts[m]++;
+    }
+  });
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+      {MONTHS.map((mo, i) => (
+        <div key={mo}
+          onClick={() => onPick(i)}
+          style={{
+            border: '1px solid var(--gray-200, #e5e7eb)', borderRadius: 10, padding: 12,
+            cursor: 'pointer', background: 'var(--card-bg, #fff)',
+          }}>
+          <div style={{ fontWeight: 600 }}>{mo}</div>
+          <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{counts[i]} eventos</div>
+          <MiniMonth year={y} month={i} items={items} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniMonth({ year, month, items }) {
+  const first = new Date(year, month, 1);
+  const startDay = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ d, has: items.some((e) => e.date === iso) });
   }
-  return cells;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 8 }}>
+      {cells.map((c, i) => (
+        <div key={i} style={{
+          height: 14, borderRadius: 3, fontSize: 8, textAlign: 'center', lineHeight: '14px',
+          background: c?.has ? 'var(--sky, #0EA5E9)' : c ? 'var(--gray-100, #f3f4f6)' : 'transparent',
+          color: c?.has ? '#fff' : 'var(--gray-500)',
+        }}>{c?.d || ''}</div>
+      ))}
+    </div>
+  );
+}
+
+// ── VISTA DÍA ─────────────────────────────────────────
+function DayView({ cursor, items }) {
+  const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+  const todays = items.filter((e) => e.date === iso);
+  return (
+    <div className="table-wrap" style={{ padding: 16 }}>
+      <h3 style={{ marginTop: 0 }}>
+        {cursor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      </h3>
+      {todays.length === 0 ? (
+        <div className="empty">Sin eventos ni mantenimientos para este día.</div>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {todays.map((e) => (
+            <li key={e.id} style={{
+              padding: 10, marginBottom: 6, borderRadius: 8,
+              borderLeft: `4px solid ${e.color}`,
+              background: 'var(--gray-50, #f9fafb)',
+            }}>
+              <strong>{e.title}</strong>
+              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-500)' }}>· {e.type}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

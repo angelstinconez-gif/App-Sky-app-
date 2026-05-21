@@ -19,6 +19,7 @@ const NAV = [
   { section: 'Catálogos' },
   { to: '/directorio',     label: 'Directorio',   icon: '📇', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/cuadrillas',     label: 'Cuadrillas',   icon: '👥', roles: ['admin', 'operator'] },
+  { to: '/tecnicos',       label: 'Técnicos',     icon: '🧑‍🔧', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/errores',        label: 'Catálogo errores', icon: '📋', roles: ['admin'] },
   { section: 'Análisis' },
   { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ['admin', 'operator'] },

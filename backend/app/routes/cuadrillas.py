@@ -1,12 +1,15 @@
 """CRUD de Cuadrillas."""
+import json
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 
 from app import db
 from app.models.cuadrilla import Cuadrilla
+from app.models.tecnico import Tecnico
 from app.utils.audit import log_change
 from app.utils.decorators import role_required
-from app.utils.parse import parse_str
+from app.utils.parse import parse_int, parse_str
 
 bp = Blueprint("cuadrillas", __name__)
 
@@ -22,12 +25,43 @@ def list_c():
     return jsonify([i.to_dict() for i in items])
 
 
+def _serialize_miembros(value):
+    """Acepta lista de ids o texto y devuelve JSON string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        ids = [int(x) for x in value if str(x).lstrip("-").isdigit()]
+        return json.dumps(ids)
+    return parse_str(value)
+
+
 def _apply(c: Cuadrilla, data: dict):
     c.nombre = parse_str(data.get("nombre")) or c.nombre
     c.zona = parse_str(data.get("zona"))
-    c.lider = parse_str(data.get("lider"))
-    c.miembros = parse_str(data.get("miembros"))
-    c.telefono = parse_str(data.get("telefono"))
+
+    # Líder: si llega liderId, buscar el técnico y auto-llenar nombre + teléfono
+    lider_id = parse_int(data.get("liderId"))
+    if lider_id:
+        tec = db.session.get(Tecnico, lider_id)
+        if tec:
+            c.lider_id = tec.id
+            c.lider = tec.nombre
+            c.telefono = tec.telefono or parse_str(data.get("telefono"))
+        else:
+            c.lider_id = None
+            c.lider = parse_str(data.get("lider"))
+            c.telefono = parse_str(data.get("telefono"))
+    else:
+        c.lider_id = None
+        c.lider = parse_str(data.get("lider"))
+        c.telefono = parse_str(data.get("telefono"))
+
+    # Miembros: aceptamos lista de IDs (preferido) o texto libre
+    if "miembrosIds" in data:
+        c.miembros = _serialize_miembros(data.get("miembrosIds"))
+    elif "miembros" in data:
+        c.miembros = _serialize_miembros(data.get("miembros"))
+
     c.notes = parse_str(data.get("notes"))
 
 

@@ -35,6 +35,7 @@ export const garantiasApi = crud('/garantias');
 export const polizasApi = crud('/polizas');
 export const directorioApi = crud('/directorio');
 export const cuadrillasApi = crud('/cuadrillas');
+export const tecnicosApi = crud('/tecnicos');
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');

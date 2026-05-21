@@ -144,8 +144,16 @@ export default function CrudPage({
                 <textarea rows="2" value={form[f.key] ?? ''} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
               ) : f.type === 'select' ? (
                 <select value={form[f.key] ?? ''} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}>
-                  <option value="">—</option>
-                  {f.options.map((o) => <option key={o}>{o}</option>)}
+                  {f.options.map((o) => {
+                    if (typeof o === 'object' && o !== null && 'value' in o) {
+                      return <option key={o.value || '_'} value={o.value}>{o.label}</option>;
+                    }
+                    return <option key={o} value={o}>{o}</option>;
+                  })}
+                  {/* Si las opciones son strings, añadimos placeholder vacío */}
+                  {typeof f.options[0] !== 'object' && !f.options.includes('') && (
+                    <option value="" disabled hidden>—</option>
+                  )}
                 </select>
               ) : (
                 <input

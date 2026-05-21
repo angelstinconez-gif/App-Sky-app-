@@ -68,6 +68,21 @@ def register_seed_cli(app):
                     altered += 1
                     click.echo("➕ Añadida columna 'read_at' a notification_log")
 
+            # cuadrillas — añadir 'lider_id' (FK a tecnicos)
+            if insp.has_table("cuadrillas"):
+                cols = {c["name"] for c in insp.get_columns("cuadrillas")}
+                if "lider_id" not in cols:
+                    with db.engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE cuadrillas ADD COLUMN lider_id INTEGER"))
+                    altered += 1
+                    click.echo("➕ Añadida columna 'lider_id' a cuadrillas")
+
+            # tecnicos — tabla nueva
+            from app.models.tecnico import Tecnico as _Tecnico
+            if not insp.has_table("tecnicos"):
+                _Tecnico.__table__.create(db.engine)
+                click.echo("➕ Creada: tecnicos")
+
             # Recrear tablas que cambiaron mucho
             for t in tables_to_recreate:
                 click.echo(f"🔄 Recreando tabla: {t.name}")

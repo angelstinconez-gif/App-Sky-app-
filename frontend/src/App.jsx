@@ -15,6 +15,7 @@ import Polizas from './pages/Polizas';
 import Mantenimiento from './pages/Mantenimiento';
 import Directorio from './pages/Directorio';
 import Cuadrillas from './pages/Cuadrillas';
+import Tecnicos from './pages/Tecnicos';
 import Errores from './pages/Errores';
 import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
@@ -67,6 +68,7 @@ export default function App() {
         <Route path="/polizas" element={<Protected roles={['admin', 'mantenimiento']}><Polizas /></Protected>} />
         <Route path="/directorio" element={<Protected><Directorio /></Protected>} />
         <Route path="/cuadrillas" element={<Protected roles={['admin', 'operator']}><Cuadrillas /></Protected>} />
+        <Route path="/tecnicos" element={<Protected><Tecnicos /></Protected>} />
         <Route path="/errores" element={<Protected roles={['admin']}><Errores /></Protected>} />
         <Route path="/calendario" element={<Protected roles={['admin', 'operator']}><Calendario /></Protected>} />
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />

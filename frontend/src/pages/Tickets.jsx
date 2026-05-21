@@ -216,6 +216,11 @@ export default function Tickets() {
                   <option key={a.id} value={a.value}>{a.label}</option>
                 ))}
               </optgroup>
+              <optgroup label="🧑‍🔧 Técnicos">
+                {assignees.filter((a) => a.type === 'tecnico').map((a) => (
+                  <option key={a.id} value={a.value}>{a.label}</option>
+                ))}
+              </optgroup>
             </select>
           </FormRow>
 
