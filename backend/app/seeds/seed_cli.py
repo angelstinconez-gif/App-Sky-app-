@@ -58,6 +58,15 @@ def register_seed_cli(app):
                     altered += 1
                     click.echo("➕ Añadida columna 'equipment' a incidencias")
 
+            # notification_log — añadir 'read_at' para el buzón in-app
+            if insp.has_table("notification_log"):
+                cols = {c["name"] for c in insp.get_columns("notification_log")}
+                if "read_at" not in cols:
+                    with db.engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE notification_log ADD COLUMN read_at TIMESTAMP"))
+                    altered += 1
+                    click.echo("➕ Añadida columna 'read_at' a notification_log")
+
             # Recrear tablas que cambiaron mucho
             for t in tables_to_recreate:
                 click.echo(f"🔄 Recreando tabla: {t.name}")

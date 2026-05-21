@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import NotificationBell from './NotificationBell';
 
 const TITLES = {
   '/dashboard':     { title: 'Dashboard',     sub: 'Resumen general del sistema' },
@@ -14,6 +15,7 @@ const TITLES = {
   '/reportes':      { title: 'Reportes',      sub: 'Análisis y exportación' },
   '/historial':     { title: 'Historial',     sub: 'Registro de cambios' },
   '/usuarios':      { title: 'Usuarios',      sub: 'Gestión de cuentas' },
+  '/notificaciones':{ title: 'Notificaciones',sub: 'Canales y suscripciones' },
 };
 
 export default function Topbar({ onMenu, actions }) {
@@ -25,7 +27,10 @@ export default function Topbar({ onMenu, actions }) {
       <button className="menu-toggle" onClick={onMenu}>☰</button>
       <span className="page-title">{info.title}</span>
       <span className="page-sub">{info.sub}</span>
-      <div className="topbar-actions">{actions}</div>
+      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {actions}
+        <NotificationBell />
+      </div>
     </header>
   );
 }

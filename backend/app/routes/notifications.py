@@ -1,15 +1,78 @@
-"""Endpoints para suscribirse a notificaciones y enviarlas."""
+"""Endpoints para suscribirse a notificaciones, enviarlas y consultar el buzón."""
 import os
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app import db
-from app.models.notification import NotificationSubscription
+from app.models.notification import NotificationSubscription, NotificationLog
 from app.utils.audit import log_change
 from app.utils.notify import notify_event
 
 bp = Blueprint("notifications", __name__)
+
+
+# ──────────────────────────────────────────────────────────────
+#  Buzón in-app (campana en la topbar)
+# ──────────────────────────────────────────────────────────────
+@bp.route("/inbox", methods=["GET"])
+@jwt_required()
+def inbox():
+    """Notificaciones in-app del usuario actual (más recientes primero)."""
+    user_id = int(get_jwt_identity())
+    only_unread = request.args.get("unread", "").lower() in ("1", "true", "yes")
+    limit = min(int(request.args.get("limit", 50) or 50), 200)
+
+    q = NotificationLog.query.filter(
+        NotificationLog.user_id == user_id,
+        NotificationLog.channel == "inbox",
+    )
+    if only_unread:
+        q = q.filter(NotificationLog.read_at.is_(None))
+
+    items = q.order_by(NotificationLog.sent_at.desc()).limit(limit).all()
+    return jsonify([i.to_dict() for i in items])
+
+
+@bp.route("/inbox/unread-count", methods=["GET"])
+@jwt_required()
+def unread_count():
+    """Solo el número de no-leídas (para el badge de la campana)."""
+    user_id = int(get_jwt_identity())
+    n = NotificationLog.query.filter(
+        NotificationLog.user_id == user_id,
+        NotificationLog.channel == "inbox",
+        NotificationLog.read_at.is_(None),
+    ).count()
+    return jsonify(count=n)
+
+
+@bp.route("/inbox/<int:nid>/read", methods=["POST"])
+@jwt_required()
+def mark_read(nid):
+    user_id = int(get_jwt_identity())
+    n = NotificationLog.query.filter_by(id=nid, user_id=user_id).first()
+    if not n:
+        return jsonify(error="not_found"), 404
+    if n.read_at is None:
+        n.read_at = datetime.utcnow()
+        db.session.commit()
+    return jsonify(ok=True)
+
+
+@bp.route("/inbox/read-all", methods=["POST"])
+@jwt_required()
+def mark_all_read():
+    user_id = int(get_jwt_identity())
+    now = datetime.utcnow()
+    NotificationLog.query.filter(
+        NotificationLog.user_id == user_id,
+        NotificationLog.channel == "inbox",
+        NotificationLog.read_at.is_(None),
+    ).update({"read_at": now}, synchronize_session=False)
+    db.session.commit()
+    return jsonify(ok=True)
 
 
 @bp.route("/vapid-public-key", methods=["GET"])

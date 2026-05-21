@@ -47,13 +47,18 @@ class NotificationSubscription(db.Model):
 
 
 class NotificationLog(db.Model):
-    """Bitácora de notificaciones enviadas (para evitar duplicados y auditar)."""
+    """Bitácora de notificaciones enviadas.
+
+    Funciona también como **buzón in-app** (icono de campana en la topbar).
+    Se escribe SIEMPRE una fila por destinatario aunque no tenga push/WhatsApp
+    activado — así el admin ve todo desde el navegador.
+    """
 
     __tablename__ = "notification_log"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
-    channel = db.Column(db.String(20), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    channel = db.Column(db.String(20), index=True)  # 'inbox', 'push', 'whatsapp'
     event_type = db.Column(db.String(60), index=True)
     title = db.Column(db.String(200))
     body = db.Column(db.Text)
@@ -62,3 +67,21 @@ class NotificationLog(db.Model):
     success = db.Column(db.Boolean, default=False)
     error_message = db.Column(db.Text)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    read_at = db.Column(db.DateTime, index=True)  # NULL = sin leer
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "channel": self.channel,
+            "eventType": self.event_type,
+            "title": self.title,
+            "body": self.body,
+            "relatedType": self.related_type,
+            "relatedId": self.related_id,
+            "success": self.success,
+            "errorMessage": self.error_message,
+            "sentAt": self.sent_at.isoformat() if self.sent_at else None,
+            "readAt": self.read_at.isoformat() if self.read_at else None,
+            "unread": self.read_at is None,
+        }

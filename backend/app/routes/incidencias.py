@@ -9,9 +9,27 @@ from app import db
 from app.models.incidencia import Incidencia
 from app.utils.audit import log_change
 from app.utils.decorators import role_required
+from app.utils.notify import notify_admins
 from app.utils.parse import parse_date, parse_int, parse_str
 
 bp = Blueprint("incidencias", __name__)
+
+
+def _notify_admin_if_not_admin(action, inc):
+    """Si el usuario actual NO es admin, notifica a los admins del cambio."""
+    claims = get_jwt() or {}
+    if claims.get("role") == "admin":
+        return
+    try:
+        notify_admins(
+            event_type=f"incidencia_{action}",
+            title=f"⚠️  Incidencia {action} por {claims.get('name', 'usuario')}",
+            body=f"#{inc.id} — {inc.site} ({inc.priority or 's/p'})",
+            related_type="incidencia",
+            related_id=inc.id,
+        )
+    except Exception as e:
+        print(f"⚠️  notify_admin (incidencia) falló: {e}")
 
 
 def _apply_filters(query):
@@ -90,6 +108,7 @@ def create_incidencia():
     db.session.flush()
     log_change("incidencias", "crear", f"Incidencia #{inc.id} — {inc.site}", new=inc.to_dict())
     db.session.commit()
+    _notify_admin_if_not_admin("creada", inc)
     return jsonify(inc.to_dict()), 201
 
 
@@ -105,6 +124,7 @@ def update_incidencia(item_id):
     inc.last_mod = datetime.utcnow().date()
     log_change("incidencias", "editar", f"Incidencia #{inc.id}", old=old, new=inc.to_dict())
     db.session.commit()
+    _notify_admin_if_not_admin("editada", inc)
     return jsonify(inc.to_dict())
 
 
@@ -129,6 +149,7 @@ def close_incidencia(item_id):
         new={"result": inc.close_result, "closedBy": inc.closed_by},
     )
     db.session.commit()
+    _notify_admin_if_not_admin("cerrada", inc)
     return jsonify(inc.to_dict())
 
 

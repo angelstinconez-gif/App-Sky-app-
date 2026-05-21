@@ -1,4 +1,12 @@
-"""Envío de notificaciones por WhatsApp (Twilio) y Web Push."""
+"""Envío de notificaciones por buzón in-app, Web Push (PWA) y WhatsApp (Twilio).
+
+Diseño:
+- Toda notificación se registra **siempre** como una fila `NotificationLog`
+  con `channel="inbox"` por cada destinatario. Esto alimenta el icono de
+  campana en la Topbar — aunque el usuario no haya activado push/WhatsApp.
+- Si además tiene suscripciones push o WhatsApp activas, se intentan los
+  canales externos y se loguea el resultado.
+"""
 import json
 import os
 from datetime import datetime
@@ -37,7 +45,6 @@ def send_web_push(subscription: NotificationSubscription, title: str, body: str,
         )
         return True, ""
     except WebPushException as e:
-        # Si el endpoint ya no es válido, marcamos la suscripción como inactiva
         if e.response and e.response.status_code in (404, 410):
             subscription.active = False
             db.session.commit()
@@ -53,20 +60,18 @@ def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
     """Envía mensaje de WhatsApp usando Twilio. Devuelve (success, error_msg)."""
     sid = os.environ.get("TWILIO_ACCOUNT_SID")
     token = os.environ.get("TWILIO_AUTH_TOKEN")
-    from_ = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")  # sandbox por defecto
+    from_ = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
 
     if not sid or not token:
-        return False, "Twilio no configurado (TWILIO_ACCOUNT_SID/TOKEN faltantes)"
+        return False, "Twilio no configurado"
 
     try:
         from twilio.rest import Client
     except ImportError:
         return False, "twilio no instalado"
 
-    # Normalizar número
     p = str(phone).strip().replace(" ", "").replace("-", "")
     if not p.startswith("+"):
-        # Asumir México si no tiene prefijo
         p = "+52" + p.lstrip("0")
     to = f"whatsapp:{p}"
 
@@ -81,8 +86,25 @@ def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────
 #  Dispatcher de alto nivel
 # ──────────────────────────────────────────────────────────────
+def _log(user_id, channel, event_type, title, body, related_type, related_id, success, error=None):
+    """Inserta una fila en NotificationLog (no hace commit)."""
+    log = NotificationLog(
+        user_id=user_id,
+        channel=channel,
+        event_type=event_type,
+        title=title,
+        body=body,
+        related_type=related_type,
+        related_id=related_id,
+        success=success,
+        error_message=error,
+    )
+    db.session.add(log)
+    return log
+
+
 def notify_admins(event_type: str, title: str, body: str, related_type: str = None, related_id: int = None):
-    """Notifica a TODOS los usuarios con rol admin (útil cuando otros roles cambian datos sensibles)."""
+    """Notifica a TODOS los usuarios con rol admin (in-app + push/whatsapp si tienen)."""
     from app.models.user import User
     admin_ids = [u.id for u in User.query.filter_by(role="admin", active=True).all()]
     if not admin_ids:
@@ -91,42 +113,46 @@ def notify_admins(event_type: str, title: str, body: str, related_type: str = No
 
 
 def notify_event(event_type: str, title: str, body: str, related_type: str = None, related_id: int = None, user_ids: list = None):
-    """
-    Envía notificación a todos los suscriptores de un evento.
-    Si user_ids está dado, sólo a esos usuarios.
-    """
-    query = NotificationSubscription.query.filter_by(active=True)
-    if user_ids:
-        query = query.filter(NotificationSubscription.user_id.in_(user_ids))
-    subs = query.all()
+    """Notifica un evento al conjunto de usuarios indicado.
 
-    # Filtrar por tipo de evento
-    subs = [s for s in subs if not s.event_types or event_type in s.event_types]
+    1. SIEMPRE escribe una fila `inbox` por cada `user_id` (visible en la campana).
+    2. Adicionalmente intenta push/WhatsApp si el usuario tiene suscripciones activas
+       y el `event_type` está en su lista de preferencias (o la lista está vacía).
+    """
+    if not user_ids:
+        return 0
 
     sent = 0
-    for s in subs:
-        ok, err = False, "canal desconocido"
-        if s.channel == "push" and s.endpoint:
-            ok, err = send_web_push(s, title, body, {"type": event_type, "id": related_id})
-        elif s.channel == "whatsapp" and s.phone:
-            text = f"*{title}*\n{body}"
-            ok, err = send_whatsapp(s.phone, text)
-
-        log = NotificationLog(
-            user_id=s.user_id,
-            channel=s.channel,
-            event_type=event_type,
-            title=title,
-            body=body,
-            related_type=related_type,
-            related_id=related_id,
-            success=ok,
-            error_message=err if not ok else None,
-        )
-        db.session.add(log)
-        if ok:
-            s.last_sent = datetime.utcnow()
+    try:
+        # 1. Buzón in-app (siempre) — una fila por destinatario
+        for uid in user_ids:
+            _log(uid, "inbox", event_type, title, body, related_type, related_id, success=True)
             sent += 1
 
-    db.session.commit()
+        # 2. Canales externos (push / whatsapp) — solo si están suscritos
+        subs = NotificationSubscription.query.filter(
+            NotificationSubscription.user_id.in_(user_ids),
+            NotificationSubscription.active.is_(True),
+        ).all()
+        for s in subs:
+            # Filtrar por preferencias de eventos (si están definidas)
+            if s.event_types:
+                allowed = [e.strip() for e in s.event_types.split(",") if e.strip()]
+                if allowed and event_type not in allowed:
+                    continue
+
+            ok, err = False, "canal desconocido"
+            if s.channel == "push" and s.endpoint:
+                ok, err = send_web_push(s, title, body, {"type": event_type, "id": related_id})
+            elif s.channel == "whatsapp" and s.phone:
+                ok, err = send_whatsapp(s.phone, f"*{title}*\n{body}")
+
+            _log(s.user_id, s.channel, event_type, title, body, related_type, related_id, ok, err if not ok else None)
+            if ok:
+                s.last_sent = datetime.utcnow()
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️  notify_event falló: {e}")
     return sent

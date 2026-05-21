@@ -79,4 +79,9 @@ export const notificationsApi = {
   list: () => api.get('/notifications/subscriptions').then((r) => r.data),
   unsubscribe: (id) => api.delete(`/notifications/subscriptions/${id}`).then((r) => r.data),
   test: () => api.post('/notifications/test').then((r) => r.data),
+  // Buzón in-app (icono de campana)
+  inbox: (params) => api.get('/notifications/inbox', { params }).then((r) => r.data),
+  unreadCount: () => api.get('/notifications/inbox/unread-count').then((r) => r.data.count),
+  markRead: (id) => api.post(`/notifications/inbox/${id}/read`).then((r) => r.data),
+  markAllRead: () => api.post('/notifications/inbox/read-all').then((r) => r.data),
 };
