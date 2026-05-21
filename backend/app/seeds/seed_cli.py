@@ -165,17 +165,18 @@ def register_seed_cli(app):
                     existing = Poliza.query.filter_by(project=key_proj).first()
 
                 if existing:
-                    # UPSERT — actualiza campos vacíos sin sobrescribir info válida
+                    # UPSERT — fechas/plataforma/poliza vienen del Excel oficial, SOBRESCRIBIR
+                    if p.get("sysStart"): existing.sys_start = parse_date(p["sysStart"])
+                    if p.get("polStart"): existing.pol_start = parse_date(p["polStart"])
+                    if p.get("polEnd"):   existing.pol_end = parse_date(p["polEnd"])
+                    if p.get("platform"): existing.platform = p["platform"]
+                    if p.get("poliza"):   existing.poliza = p["poliza"]
+                    if p.get("status"):   existing.status = p["status"]
+                    if p.get("zona"):     existing.zona = p["zona"]
+                    # Estos sí preservan info ya capturada por usuario
                     if p.get("grupo") and not existing.grupo: existing.grupo = p["grupo"]
                     if p.get("tarifa") and not existing.tarifa: existing.tarifa = p["tarifa"]
-                    if p.get("platform") and not existing.platform: existing.platform = p["platform"]
-                    if p.get("sysStart") and not existing.sys_start: existing.sys_start = parse_date(p["sysStart"])
-                    if p.get("polStart") and not existing.pol_start: existing.pol_start = parse_date(p["polStart"])
-                    if p.get("polEnd") and not existing.pol_end: existing.pol_end = parse_date(p["polEnd"])
-                    if p.get("status") and not existing.status: existing.status = p["status"]
-                    if p.get("zona") and not existing.zona: existing.zona = p["zona"]
                     if p.get("cuadrilla") and not existing.cuadrilla: existing.cuadrilla = p["cuadrilla"]
-                    if p.get("poliza") and not existing.poliza: existing.poliza = p["poliza"]
                     continue
 
                 db.session.add(Poliza(

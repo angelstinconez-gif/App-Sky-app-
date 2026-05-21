@@ -3,13 +3,8 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { cuadrillasApi, tecnicosApi } from '../api/endpoints';
+import { cuadrillasApi, tecnicosApi, polizasApi } from '../api/endpoints';
 import { downloadXLSX } from '../utils/format';
-
-const ZONAS = [
-  'Península', 'Metropolitana', 'Especial', 'Monterrey', 'Tizayuca', 'Proveedor',
-  'Yucatán', 'Quintana Roo', 'Oaxaca', 'Veracruz', 'Otra',
-];
 
 const empty = { nombre: '', zona: '', liderId: '', telefono: '', miembrosIds: [], notes: '' };
 
@@ -21,6 +16,7 @@ export default function Cuadrillas() {
 
   const [items, setItems] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
+  const [zonas, setZonas] = useState([]);
   const [zona, setZona] = useState('');
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -32,7 +28,10 @@ export default function Cuadrillas() {
     cuadrillasApi.list({ zona }).then(setItems).catch(() => toast('Error al cargar', 'error')).finally(() => setLoading(false));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [zona]);
-  useEffect(() => { tecnicosApi.list().then(setTecnicos).catch(() => {}); }, []);
+  useEffect(() => {
+    tecnicosApi.list().then(setTecnicos).catch(() => {});
+    polizasApi.zonas().then(setZonas).catch(() => setZonas([]));
+  }, []);
 
   // ── Cuando se elige líder, auto-llenar teléfono ──
   const onLiderChange = (id) => {
@@ -128,7 +127,7 @@ export default function Cuadrillas() {
       <div className="filters-bar">
         <select className="filter-select" value={zona} onChange={(e) => setZona(e.target.value)}>
           <option value="">Todas las zonas</option>
-          {ZONAS.map((z) => <option key={z}>{z}</option>)}
+          {zonas.map((z) => <option key={z}>{z}</option>)}
         </select>
       </div>
 
@@ -149,11 +148,14 @@ export default function Cuadrillas() {
           <FormRow label="Nombre *">
             <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </FormRow>
-          <FormRow label="Zona">
+          <FormRow label="Zona (de pólizas)">
             <select value={form.zona} onChange={(e) => setForm({ ...form, zona: e.target.value })}>
               <option value="">—</option>
-              {ZONAS.map((z) => <option key={z}>{z}</option>)}
+              {zonas.map((z) => <option key={z}>{z}</option>)}
             </select>
+            <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>
+              Las zonas se sincronizan con las que existen en Pólizas.
+            </div>
           </FormRow>
 
           <FormRow label="Líder (técnico)">

@@ -12,6 +12,36 @@ from app.utils.parse import parse_date, parse_int, parse_str
 bp = Blueprint("polizas", __name__)
 
 
+@bp.route("/zonas", methods=["GET"])
+@jwt_required()
+def list_zonas():
+    """Devuelve la lista única de zonas presentes en Pólizas (para dropdowns
+    de Cuadrillas y Técnicos)."""
+    rows = (
+        db.session.query(Poliza.zona)
+        .filter(Poliza.zona.isnot(None), Poliza.zona != "")
+        .distinct()
+        .order_by(Poliza.zona.asc())
+        .all()
+    )
+    zonas = sorted({(r[0] or "").strip() for r in rows if r[0]})
+    return jsonify(zonas)
+
+
+@bp.route("/plataformas", methods=["GET"])
+@jwt_required()
+def list_plataformas():
+    """Devuelve la lista única de plataformas presentes en Pólizas."""
+    rows = (
+        db.session.query(Poliza.platform)
+        .filter(Poliza.platform.isnot(None), Poliza.platform != "")
+        .distinct()
+        .order_by(Poliza.platform.asc())
+        .all()
+    )
+    return jsonify(sorted({(r[0] or "").strip() for r in rows if r[0]}))
+
+
 @bp.route("", methods=["GET"])
 @jwt_required()
 def list_polizas():

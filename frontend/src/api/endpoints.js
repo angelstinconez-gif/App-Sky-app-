@@ -32,7 +32,11 @@ export const erroresApi = {
 };
 
 export const garantiasApi = crud('/garantias');
-export const polizasApi = crud('/polizas');
+export const polizasApi = {
+  ...crud('/polizas'),
+  zonas: () => api.get('/polizas/zonas').then((r) => r.data),
+  plataformas: () => api.get('/polizas/plataformas').then((r) => r.data),
+};
 export const directorioApi = crud('/directorio');
 export const cuadrillasApi = crud('/cuadrillas');
 export const tecnicosApi = crud('/tecnicos');

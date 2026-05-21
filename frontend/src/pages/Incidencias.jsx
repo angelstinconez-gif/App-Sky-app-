@@ -137,15 +137,16 @@ export default function Incidencias() {
       );
     }
     if (p) {
-      const newPlatform = normalizePlatform(p.platform);
+      const newPlatform = normalizePlatform(p.platform) || p.platform;
       setForm((f) => ({
         ...f,
-        site: f.site || p.project,
-        code: f.code || p.code,
-        client: f.client || p.grupo,
-        platform: newPlatform || f.platform,
+        site: p.project || f.site,
+        code: p.code || f.code,
+        client: p.grupo || f.client,
+        platform: newPlatform || f.platform,   // se actualiza si la póliza tiene plataforma
+        errCode: newPlatform !== f.platform ? '' : f.errCode,
       }));
-      toast('Datos cargados desde la póliza');
+      toast(`Datos cargados desde la póliza${newPlatform ? ` (${newPlatform})` : ''}`);
     }
   };
 
@@ -287,18 +288,13 @@ export default function Incidencias() {
         }
       >
         <div className="form-grid">
-          {/* ── PROYECTO ── */}
-          <FormRow label="Plataforma">
-            <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value, errCode: '' })}>
-              <option value="">—</option>
-              {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </FormRow>
+          {/* ── PROYECTO PRIMERO ── */}
           <FormRow label="Código proyecto">
             <div style={{ display: 'flex', gap: 4 }}>
               <input list="poliza-codes" value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
                 onBlur={onProjectAutofill}
+                placeholder="Código de la planta"
                 style={{ flex: 1 }} />
               <datalist id="poliza-codes">
                 {polizas.map((p) => <option key={p.id} value={p.code}>{p.project}</option>)}
@@ -309,10 +305,19 @@ export default function Incidencias() {
             <input list="poliza-projects" value={form.site}
               onChange={(e) => setForm({ ...form, site: e.target.value })}
               onBlur={onProjectAutofill}
-              placeholder="Empieza a escribir el nombre o código del proyecto" />
+              placeholder="Nombre del proyecto / planta" />
             <datalist id="poliza-projects">
               {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
             </datalist>
+          </FormRow>
+          {/* ── PLATAFORMA: auto desde código/proyecto ── */}
+          <FormRow label="Plataforma del equipo (auto)">
+            <input
+              value={form.platform || ''}
+              readOnly
+              className="readonly-auto"
+              placeholder="Se rellena al elegir código o proyecto"
+            />
           </FormRow>
           <FormRow label="Cliente">
             <input value={form.client} readOnly className="readonly-auto" />

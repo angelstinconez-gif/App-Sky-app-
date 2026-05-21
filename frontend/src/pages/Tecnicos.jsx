@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CrudPage from '../components/CrudPage';
-import { tecnicosApi, cuadrillasApi } from '../api/endpoints';
-import { useEffect } from 'react';
+import { tecnicosApi, cuadrillasApi, polizasApi } from '../api/endpoints';
 
 const ROLES = ['Líder', 'Técnico', 'Auxiliar', 'Electricista', 'Mantenimiento', 'Especialista'];
-const ZONAS = ['Norte', 'Sur', 'Centro', 'Bajío', 'Península', 'Noreste', 'Noroeste', 'Sureste', 'Otra'];
 
 export default function Tecnicos() {
   const [cuadrillas, setCuadrillas] = useState([]);
-  useEffect(() => { cuadrillasApi.list().then(setCuadrillas).catch(() => {}); }, []);
+  const [zonas, setZonas] = useState([]);
+
+  useEffect(() => {
+    cuadrillasApi.list().then(setCuadrillas).catch(() => {});
+    polizasApi.zonas().then(setZonas).catch(() => setZonas([]));
+  }, []);
 
   return (
     <CrudPage
@@ -16,10 +19,10 @@ export default function Tecnicos() {
       api={tecnicosApi}
       writeRoles={['admin', 'operator']}
       deleteRoles={['admin']}
-      helpText="Personal asignable a cuadrillas y tickets. Al crear una cuadrilla, los miembros y el líder se eligen de aquí."
+      helpText="Personal asignable a cuadrillas y tickets. Las zonas se sincronizan automáticamente con las de las Pólizas."
       filters={[
         { key: 'rol', label: 'roles', options: ROLES },
-        { key: 'zona', label: 'zonas', options: ZONAS },
+        { key: 'zona', label: 'zonas', options: zonas },
       ]}
       columns={[
         { key: 'nombre', label: 'Nombre' },
@@ -39,7 +42,7 @@ export default function Tecnicos() {
           key: 'cuadrillaId', label: 'Cuadrilla asignada', type: 'select',
           options: [{ value: '', label: '— Sin asignar —' }, ...cuadrillas.map((c) => ({ value: c.id, label: c.nombre }))],
         },
-        { key: 'zona', label: 'Zona', type: 'select', options: ZONAS },
+        { key: 'zona', label: 'Zona (de pólizas)', type: 'select', options: zonas },
         { key: 'notas', label: 'Notas', type: 'textarea', full: true },
       ]}
     />
