@@ -10,7 +10,7 @@ const ROLE_LABELS = {
 const NAV = [
   { section: 'Principal' },
   { to: '/dashboard',      label: 'Dashboard',    icon: '📊', roles: ['admin', 'operator', 'mantenimiento'] },
-  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator'] },
+  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/tickets',        label: 'Tickets',      icon: '🎫', roles: ['admin', 'operator', 'mantenimiento'] },
   { section: 'Servicio' },
   { to: '/garantias',      label: 'Garantías',    icon: '🛡️', roles: ['admin', 'mantenimiento'] },

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { eventosApi, mantenimientoApi, incidenciasApi, ticketsApi } from '../api/endpoints';
+import { eventosApi, mantenimientoApi, incidenciasApi, ticketsApi, polizasApi } from '../api/endpoints';
 import { fmtDate } from '../utils/format';
+import Modal from '../components/Modal';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
 
 const VIEWS = [
   { id: 'day', label: 'Día' },
@@ -17,14 +20,27 @@ const TYPE_FILTERS = [
 ];
 
 export default function Calendario() {
+  const { hasRole } = useAuth();
+  const toast = useToast();
+  const canSchedule = hasRole('admin', 'operator');
+
   const [view, setView] = useState('month');
   const [cursor, setCursor] = useState(() => new Date());
   const [activeTypes, setActiveTypes] = useState(() => TYPE_FILTERS.map((t) => t.id));
+  const [projectFilter, setProjectFilter] = useState('');
   const [events, setEvents] = useState([]);
   const [mants, setMants] = useState([]);
   const [tks, setTks] = useState([]);
   const [incs, setIncs] = useState([]);
+  const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal: agendar nuevo (ticket o mantenimiento)
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    kind: 'ticket', date: '', title: '', project: '', code: '', priority: 'Intermedia',
+    tipo: 'Preventivo', cuadrilla: '', notes: '',
+  });
 
   const toggleType = (id) =>
     setActiveTypes((arr) => arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
@@ -48,12 +64,70 @@ export default function Calendario() {
     }).finally(() => setLoading(false));
   }, [cursor.getFullYear()]);
 
-  // Normaliza todos en {id, date, title, type, color, related}
+  useEffect(() => { polizasApi.list().then(setPolizas).catch(() => {}); }, []);
+
+  // ── Auto-fill al teclear proyecto/código en el modal agendar ──
+  const onScheduleProject = (val) => {
+    setScheduleForm((f) => ({ ...f, project: val }));
+    const p = polizas.find((x) =>
+      x.project?.toLowerCase() === val.toLowerCase() ||
+      x.code?.toLowerCase() === val.toLowerCase()
+    );
+    if (p) setScheduleForm((f) => ({ ...f, project: p.project, code: p.code || f.code }));
+  };
+
+  const onSaveSchedule = async () => {
+    const { kind, date, title, project, code, priority, tipo, cuadrilla, notes } = scheduleForm;
+    if (!date) return toast('Falta la fecha', 'error');
+    if (!project && !title) return toast('Indica proyecto o título', 'error');
+    try {
+      if (kind === 'ticket') {
+        await ticketsApi.create({
+          title: title || `Visita — ${project}`,
+          site: project, projectCode: code, priority,
+          status: 'Abierto',
+          openDate: new Date().toISOString().slice(0, 10),
+          dueDate: date,
+          description: notes,
+        });
+        toast(`Ticket programado para ${date}`);
+      } else {
+        await mantenimientoApi.create({
+          project, code, tipo, cuadrilla,
+          fechaProgramada: date, estado: 'Programado',
+          descripcion: notes,
+        });
+        toast(`Mantenimiento programado para ${date}`);
+      }
+      setScheduleOpen(false);
+      // Recargar datos
+      const y = cursor.getFullYear();
+      const start = `${y}-01-01`, end = `${y}-12-31`;
+      Promise.all([
+        eventosApi.list({ start, end }).catch(() => []),
+        mantenimientoApi.list().catch(() => []),
+        ticketsApi.list().catch(() => []),
+        incidenciasApi.list().catch(() => []),
+      ]).then(([ev, mt, tk, inc]) => {
+        setEvents(ev || []); setMants(mt || []); setTks(tk || []); setIncs(inc || []);
+      });
+    } catch (e) {
+      toast(e?.response?.data?.message || 'Error al agendar', 'error');
+    }
+  };
+
+  const openSchedule = (iso, kind = 'ticket') => {
+    setScheduleForm((f) => ({ ...f, kind, date: iso || new Date().toISOString().slice(0, 10) }));
+    setScheduleOpen(true);
+  };
+
+  // Normaliza todos en {id, date, title, type, color, project}
   const allItems = useMemo(() => {
     const ms = mants.map((m) => ({
       id: `m-${m.id}`,
       date: (m.fecha_programada || m.fechaProgramada || '').slice(0, 10),
       title: `${m.tipo || 'Mant.'} — ${m.project || m.proyecto || ''}`,
+      project: m.project || m.proyecto || '',
       type: 'mantenimiento',
       color: m.estado === 'Ejecutado' ? '#16a34a' : '#f59e0b',
     })).filter((x) => x.date);
@@ -61,6 +135,7 @@ export default function Calendario() {
       id: `t-${t.id}`,
       date: (t.openDate || t.open_date || '').slice(0, 10),
       title: `#${t.id} ${t.title || ''}`,
+      project: t.site || '',
       type: 'ticket',
       color: t.status === 'Cerrado' ? '#16a34a' : '#0EA5E9',
     })).filter((x) => x.date);
@@ -68,18 +143,30 @@ export default function Calendario() {
       id: `i-${i.id}`,
       date: (i.incDate || i.inc_date || '').slice(0, 10),
       title: `${i.site || ''} — ${i.problem || i.errCode || ''}`,
+      project: i.site || '',
       type: 'incidencia',
       color: i.status === 'cerrada' ? '#16a34a' : '#e11d48',
     })).filter((x) => x.date);
     const ee = events.map((e) => ({
-      id: `e-${e.id}`,
-      date: e.eventDate,
-      title: e.title,
-      type: 'evento',
-      color: e.color || '#8b5cf6',
+      id: `e-${e.id}`, date: e.eventDate, title: e.title,
+      project: e.project || '', type: 'evento', color: e.color || '#8b5cf6',
     }));
-    return [...ms, ...tt, ...ii, ...ee].filter((x) => activeTypes.includes(x.type));
-  }, [events, mants, tks, incs, activeTypes]);
+    const all = [...ms, ...tt, ...ii, ...ee].filter((x) => activeTypes.includes(x.type));
+    if (!projectFilter.trim()) return all;
+    const q = projectFilter.toLowerCase().trim();
+    return all.filter((x) => (x.project || '').toLowerCase().includes(q));
+  }, [events, mants, tks, incs, activeTypes, projectFilter]);
+
+  // Lista única de proyectos (de pólizas + de items) para el datalist
+  const projectsList = useMemo(() => {
+    const set = new Set();
+    polizas.forEach((p) => p.project && set.add(p.project));
+    [...mants, ...tks, ...incs].forEach((x) => {
+      const p = x.project || x.proyecto || x.site;
+      if (p) set.add(p);
+    });
+    return [...set].sort();
+  }, [polizas, mants, tks, incs]);
 
   const onMonthSelect = (idx) => setCursor(new Date(cursor.getFullYear(), idx, 1));
   const onYearChange = (y) => setCursor(new Date(parseInt(y, 10), cursor.getMonth(), 1));
@@ -117,7 +204,31 @@ export default function Calendario() {
           {view === 'month' && <><button className="btn btn-sm" onClick={() => navMonth(-1)}>‹</button><button className="btn btn-sm" onClick={() => navMonth(1)}>›</button></>}
           {view === 'year' && <><button className="btn btn-sm" onClick={() => navYear(-1)}>‹</button><button className="btn btn-sm" onClick={() => navYear(1)}>›</button></>}
           <button className="btn btn-sm" onClick={() => setCursor(new Date())}>Hoy</button>
+          {canSchedule && (
+            <button className="btn btn-sm btn-primary" onClick={() => openSchedule(null, 'ticket')}>
+              + Agendar
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* ── Buscador por proyecto ── */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0 12px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>🔍 Filtrar por proyecto:</span>
+        <input
+          list="cal-projects"
+          className="filter-input"
+          placeholder="Empieza a escribir el proyecto..."
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          style={{ minWidth: 260 }}
+        />
+        <datalist id="cal-projects">
+          {projectsList.map((p) => <option key={p} value={p} />)}
+        </datalist>
+        {projectFilter && (
+          <button className="btn btn-sm" onClick={() => setProjectFilter('')}>× Quitar filtro</button>
+        )}
       </div>
 
       {/* ── Filtros por tipo (chips) ── */}
@@ -149,9 +260,12 @@ export default function Calendario() {
       </div>
 
       {loading ? <div className="empty"><span className="spinner" /></div> : (
-        view === 'month' ? <MonthView cursor={cursor} items={allItems} /> :
+        view === 'month' ? <MonthView cursor={cursor} items={allItems} canSchedule={canSchedule} onDayClick={(iso) => openSchedule(iso, 'ticket')} /> :
         view === 'year' ? <YearView cursor={cursor} items={allItems} onPick={onMonthSelect} /> :
-        <DayView cursor={cursor} items={allItems} />
+        <DayView cursor={cursor} items={allItems} canSchedule={canSchedule} onSchedule={(kind) => openSchedule(
+          `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
+          kind
+        )} />
       )}
 
       <div style={{ marginTop: 20 }}>
@@ -175,11 +289,82 @@ export default function Calendario() {
           </table>
         </div>
       </div>
+
+      {/* ── Modal: Agendar ticket o mantenimiento ── */}
+      <Modal
+        open={scheduleOpen} onClose={() => setScheduleOpen(false)}
+        title={`Agendar ${scheduleForm.kind === 'ticket' ? 'ticket' : 'mantenimiento'}`}
+        footer={
+          <>
+            <button className="btn" onClick={() => setScheduleOpen(false)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={onSaveSchedule}>Programar</button>
+          </>
+        }
+      >
+        <div className="form-grid">
+          <div className="form-row">
+            <label>Tipo</label>
+            <select value={scheduleForm.kind} onChange={(e) => setScheduleForm({ ...scheduleForm, kind: e.target.value })}>
+              <option value="ticket">🎫 Ticket de visita</option>
+              <option value="mantenimiento">🔧 Mantenimiento programado</option>
+            </select>
+          </div>
+          <div className="form-row">
+            <label>Fecha *</label>
+            <input type="date" value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
+          </div>
+          <div className="form-row full">
+            <label>Proyecto / Planta *</label>
+            <input list="sch-projects" value={scheduleForm.project}
+              onChange={(e) => onScheduleProject(e.target.value)}
+              placeholder="Empieza a escribir el proyecto..." />
+            <datalist id="sch-projects">
+              {projectsList.map((p) => <option key={p} value={p} />)}
+            </datalist>
+          </div>
+          <div className="form-row">
+            <label>Código (auto)</label>
+            <input value={scheduleForm.code} readOnly className="readonly-auto" />
+          </div>
+          {scheduleForm.kind === 'ticket' ? (
+            <>
+              <div className="form-row">
+                <label>Título</label>
+                <input value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
+                  placeholder={`Visita — ${scheduleForm.project || 'proyecto'}`} />
+              </div>
+              <div className="form-row">
+                <label>Prioridad</label>
+                <select value={scheduleForm.priority} onChange={(e) => setScheduleForm({ ...scheduleForm, priority: e.target.value })}>
+                  {['Critico', 'Alta', 'Intermedia', 'Baja'].map((p) => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="form-row">
+                <label>Tipo de mantto</label>
+                <select value={scheduleForm.tipo} onChange={(e) => setScheduleForm({ ...scheduleForm, tipo: e.target.value })}>
+                  {['Preventivo', 'Correctivo', 'Predictivo', 'Inspección'].map((t) => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <label>Cuadrilla</label>
+                <input value={scheduleForm.cuadrilla} onChange={(e) => setScheduleForm({ ...scheduleForm, cuadrilla: e.target.value })} />
+              </div>
+            </>
+          )}
+          <div className="form-row full">
+            <label>Notas / descripción</label>
+            <textarea rows="3" value={scheduleForm.notes} onChange={(e) => setScheduleForm({ ...scheduleForm, notes: e.target.value })} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function MonthView({ cursor, items }) {
+function MonthView({ cursor, items, canSchedule, onDayClick }) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
@@ -204,12 +389,17 @@ function MonthView({ cursor, items }) {
           <div key={d} style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', padding: 6 }}>{d}</div>
         ))}
         {cells.map((cell, i) => (
-          <div key={i} style={{
-            minHeight: 90, padding: 6, borderRadius: 8,
-            background: cell.isCurrentMonth ? 'var(--gray-50)' : 'transparent',
-            opacity: cell.isCurrentMonth ? 1 : 0.4,
-            border: cell.iso === today ? '2px solid var(--sky, #0EA5E9)' : '1px solid var(--gray-100)',
-          }}>
+          <div key={i}
+            onClick={() => canSchedule && cell.iso && onDayClick && onDayClick(cell.iso)}
+            style={{
+              minHeight: 90, padding: 6, borderRadius: 8,
+              background: cell.isCurrentMonth ? 'var(--gray-50)' : 'transparent',
+              opacity: cell.isCurrentMonth ? 1 : 0.4,
+              border: cell.iso === today ? '2px solid var(--sky, #0EA5E9)' : '1px solid var(--gray-100)',
+              cursor: canSchedule && cell.iso ? 'pointer' : 'default',
+            }}
+            title={canSchedule && cell.iso ? `Click para agendar el ${cell.iso}` : ''}
+          >
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>{cell.day}</div>
             {cell.events.slice(0, 3).map((e) => (
               <div key={e.id} title={e.title} style={{
@@ -266,12 +456,20 @@ function MiniMonth({ year, month, items }) {
   );
 }
 
-function DayView({ cursor, items }) {
+function DayView({ cursor, items, canSchedule, onSchedule }) {
   const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
   const todays = items.filter((e) => e.date === iso);
   return (
     <div className="table-wrap" style={{ padding: 16 }}>
-      <h3 style={{ marginTop: 0 }}>{cursor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0 }}>{cursor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
+        {canSchedule && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => onSchedule('ticket')}>+ Ticket</button>
+            <button className="btn btn-sm" onClick={() => onSchedule('mantenimiento')}>+ Mantenimiento</button>
+          </div>
+        )}
+      </div>
       {todays.length === 0 ? (
         <div className="empty">Sin eventos para este día (según los filtros activos).</div>
       ) : (

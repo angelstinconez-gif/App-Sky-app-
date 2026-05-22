@@ -18,7 +18,7 @@ const empty = {
 export default function Tickets() {
   const { hasRole } = useAuth();
   const toast = useToast();
-  const canWrite = hasRole('admin', 'operator', 'mantenimiento');
+  const canWrite = hasRole('admin', 'operator');
   const canDelete = hasRole('admin');
 
   const [items, setItems] = useState([]);

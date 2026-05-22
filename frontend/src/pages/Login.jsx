@@ -87,15 +87,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="demo-hint">
-          <strong>Cuentas de prueba</strong>
-          <br />
-          Admin: <code>admin@skyenergy.mx</code> · <code>Sky@Admin2025</code>
-          <br />
-          Operador: <code>operador@skyenergy.mx</code> · <code>Sky@Oper2025</code>
-          <br />
-          Mantto: <code>mantenimiento@skyenergy.mx</code> · <code>Sky@Mant2025</code>
-        </div>
       </div>
     </div>
   );

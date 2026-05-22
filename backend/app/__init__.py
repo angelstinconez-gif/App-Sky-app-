@@ -62,6 +62,7 @@ def create_app(config_class="config.Config"):
     from app.routes.assignees import bp as assignees_bp
     from app.routes.tecnicos import bp as tecnicos_bp
     from app.routes.avisos import bp as avisos_bp
+    from app.routes.reportes import bp as reportes_bp
 
     app.register_blueprint(auth_bp,         url_prefix="/api/auth")
     app.register_blueprint(users_bp,        url_prefix="/api/users")
@@ -81,6 +82,7 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(assignees_bp,    url_prefix="/api/assignees")
     app.register_blueprint(tecnicos_bp,     url_prefix="/api/tecnicos")
     app.register_blueprint(avisos_bp,       url_prefix="/api/avisos")
+    app.register_blueprint(reportes_bp,     url_prefix="/api/reportes")
 
     # ── CLI: seed ──
     from app.seeds.seed_cli import register_seed_cli

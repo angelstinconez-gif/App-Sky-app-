@@ -70,7 +70,7 @@ def _apply(t, data):
 
 @bp.route("", methods=["POST"])
 @jwt_required()
-@role_required("admin", "operator", "mantenimiento")
+@role_required("admin", "operator")
 def create_ticket():
     data = request.get_json(silent=True) or {}
     if not data.get("title"):
@@ -87,7 +87,7 @@ def create_ticket():
 
 @bp.route("/<int:item_id>", methods=["PUT"])
 @jwt_required()
-@role_required("admin", "operator", "mantenimiento")
+@role_required("admin", "operator")
 def update_ticket(item_id):
     t = db.session.get(Ticket, item_id)
     if not t:
@@ -107,7 +107,7 @@ def update_ticket(item_id):
 
 @bp.route("/<int:item_id>/close", methods=["POST"])
 @jwt_required()
-@role_required("admin", "operator", "mantenimiento")
+@role_required("admin", "operator")
 def close_ticket(item_id):
     t = db.session.get(Ticket, item_id)
     if not t:
