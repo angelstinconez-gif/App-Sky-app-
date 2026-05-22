@@ -40,6 +40,10 @@ export const polizasApi = {
 export const directorioApi = crud('/directorio');
 export const cuadrillasApi = crud('/cuadrillas');
 export const tecnicosApi = crud('/tecnicos');
+export const avisosApi = {
+  ...crud('/avisos'),
+  listAll: () => api.get('/avisos', { params: { all: 1 } }).then((r) => r.data),
+};
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');

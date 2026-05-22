@@ -89,7 +89,9 @@ def register_seed_cli(app):
                     click.echo(f"  ➕ Creada: {model.__tablename__}")
 
             from app.models.tecnico import Tecnico as _Tecnico
+            from app.models.aviso import Aviso as _Aviso
             _try("crear tecnicos", lambda: _create_if_missing(_Tecnico))
+            _try("crear avisos", lambda: _create_if_missing(_Aviso))
             _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
             _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
 

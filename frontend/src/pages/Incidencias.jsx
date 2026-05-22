@@ -117,36 +117,50 @@ export default function Incidencias() {
     }));
   };
 
-  // ── Cuando cambia el sitio/código de proyecto → buscar en Pólizas y auto-llenar ──
-  const onProjectAutofill = () => {
-    if (!form.code && !form.site) return;
-    const codeU = (form.code || '').toUpperCase();
-    const siteL = (form.site || '').toLowerCase();
-    // 1. Coincidencia exacta primero
-    let p = polizas.find(
-      (x) =>
-        (codeU && x.code?.toUpperCase() === codeU) ||
-        (siteL && x.project?.toLowerCase() === siteL)
-    );
-    // 2. Si no, coincidencia parcial (substring) — útil mientras se escribe
-    if (!p) {
-      p = polizas.find(
-        (x) =>
-          (codeU && x.code?.toUpperCase().includes(codeU) && codeU.length >= 3) ||
-          (siteL && x.project?.toLowerCase().includes(siteL) && siteL.length >= 3)
-      );
+  // ── Auto-fill desde Pólizas: busca SOLO por el campo que el usuario acaba de cambiar
+  //    (si no, al cambiar el código sigue encontrando el sitio antiguo y revierte).
+  const onProjectAutofill = (changedField /* 'code' | 'site' | undefined */) => {
+    const codeU = (form.code || '').toUpperCase().trim();
+    const siteL = (form.site || '').toLowerCase().trim();
+    if (!codeU && !siteL) return;
+
+    let p = null;
+    const matchByCode = (exact) => polizas.find((x) => {
+      const c = (x.code || '').toUpperCase();
+      return exact ? c === codeU : (c.includes(codeU) && codeU.length >= 3);
+    });
+    const matchBySite = (exact) => polizas.find((x) => {
+      const s = (x.project || '').toLowerCase();
+      return exact ? s === siteL : (s.includes(siteL) && siteL.length >= 3);
+    });
+
+    if (changedField === 'code' && codeU) {
+      p = matchByCode(true) || matchByCode(false);
+    } else if (changedField === 'site' && siteL) {
+      p = matchBySite(true) || matchBySite(false);
+    } else {
+      // Sin indicación: probar exacto primero por ambos
+      p = (codeU && matchByCode(true)) || (siteL && matchBySite(true))
+        || (codeU && matchByCode(false)) || (siteL && matchBySite(false));
     }
+
     if (p) {
-      const newPlatform = normalizePlatform(p.platform) || p.platform;
-      setForm((f) => ({
-        ...f,
-        site: p.project || f.site,
-        code: p.code || f.code,
-        client: p.grupo || f.client,
-        platform: newPlatform || f.platform,   // se actualiza si la póliza tiene plataforma
-        errCode: newPlatform !== f.platform ? '' : f.errCode,
-      }));
-      toast(`Datos cargados desde la póliza${newPlatform ? ` (${newPlatform})` : ''}`);
+      const newPlatform = normalizePlatform(p.platform) || p.platform || '';
+      setForm((f) => {
+        const platformChanged = newPlatform && newPlatform !== f.platform;
+        return {
+          ...f,
+          // Sobrescribir TODOS los campos del proyecto con los de la nueva póliza
+          site: p.project || '',
+          code: p.code || '',
+          client: p.grupo || '',
+          platform: newPlatform || f.platform,
+          // Si la plataforma cambia, limpia el código de error (era de otra plataforma)
+          errCode: platformChanged ? '' : f.errCode,
+          equipment: platformChanged ? '' : f.equipment,
+        };
+      });
+      toast(`✓ Datos cargados: ${p.project}${newPlatform ? ` · ${newPlatform}` : ''}`);
     }
   };
 
@@ -293,7 +307,7 @@ export default function Incidencias() {
             <div style={{ display: 'flex', gap: 4 }}>
               <input list="poliza-codes" value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
-                onBlur={onProjectAutofill}
+                onBlur={() => onProjectAutofill('code')}
                 placeholder="Código de la planta"
                 style={{ flex: 1 }} />
               <datalist id="poliza-codes">
@@ -304,7 +318,7 @@ export default function Incidencias() {
           <FormRow label="Proyecto *">
             <input list="poliza-projects" value={form.site}
               onChange={(e) => setForm({ ...form, site: e.target.value })}
-              onBlur={onProjectAutofill}
+              onBlur={() => onProjectAutofill('site')}
               placeholder="Nombre del proyecto / planta" />
             <datalist id="poliza-projects">
               {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
