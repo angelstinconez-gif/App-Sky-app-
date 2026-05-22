@@ -24,6 +24,16 @@ class Garantia(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def days_open(self):
+        """Días desde upload_date (o created_at si no hay) hasta hoy o hasta cierre."""
+        start = self.upload_date or (self.created_at.date() if self.created_at else None)
+        if not start:
+            return None
+        # Si el status indica cierre, usar la última actualización como fin
+        is_closed = (self.status or "").lower() in ("cerrada", "rechazada", "aprobada")
+        end = (self.updated_at.date() if (is_closed and self.updated_at) else datetime.utcnow().date())
+        return (end - start).days
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -40,4 +50,7 @@ class Garantia(db.Model):
             "status": self.status,
             "uploadDate": self.upload_date.isoformat() if self.upload_date else None,
             "comments": self.comments,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
+            "days": self.days_open(),
         }
