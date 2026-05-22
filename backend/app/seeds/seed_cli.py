@@ -229,30 +229,47 @@ def register_seed_cli(app):
             except ImportError:
                 FULL_DIRECTORIO = []
 
+            # Directorio — UPSERT por (project + maint_contact).
+            # Actualiza SIEMPRE los campos del Excel (project_code, system_type, etc.)
+            # cuando los traemos del archivo, ya que es la fuente autoritativa.
+            created_d, updated_d = 0, 0
             for d in FULL_DIRECTORIO:
-                exists = Directorio.query.filter_by(
-                    project=d["project"], maint_contact=d.get("maint_contact")
+                key_contact = d.get("maint_contact")
+                existing = Directorio.query.filter_by(
+                    project=d["project"], maint_contact=key_contact
                 ).first()
-                if exists:
-                    continue
-                db.session.add(Directorio(
-                    project=d["project"],
-                    project_code=d.get("project_code"),
-                    system_type=d.get("system_type"),
-                    maint_contact=d.get("maint_contact"),
-                    maint_phone=d.get("maint_phone"),
-                    maint_contact_2=d.get("maint_contact_2"),
-                    maint_phone_2=d.get("maint_phone_2"),
-                    maint_email=d.get("maint_email"),
-                    internal_pm=d.get("internal_pm"),
-                    internal_phone=d.get("internal_phone"),
-                    client_name=d.get("client_name"),
-                    client_email=d.get("client_email"),
-                    client_phone=d.get("client_phone"),
-                    category="Cliente" if d.get("client_name") else "Mantenimiento",
-                ))
+                # Si no hay contacto en el Excel, también busca sólo por proyecto
+                if not existing and not key_contact:
+                    existing = Directorio.query.filter_by(project=d["project"]).first()
+
+                target = existing or Directorio(project=d["project"])
+                # Estos campos vienen del Excel → sobrescribir si tienen valor
+                for src, attr in [
+                    ("project_code", "project_code"),
+                    ("system_type", "system_type"),
+                    ("maint_contact", "maint_contact"),
+                    ("maint_phone", "maint_phone"),
+                    ("maint_contact_2", "maint_contact_2"),
+                    ("maint_phone_2", "maint_phone_2"),
+                    ("maint_email", "maint_email"),
+                    ("internal_pm", "internal_pm"),
+                    ("internal_phone", "internal_phone"),
+                    ("client_name", "client_name"),
+                    ("client_email", "client_email"),
+                    ("client_phone", "client_phone"),
+                ]:
+                    if d.get(src):
+                        setattr(target, attr, d[src])
+                if not target.category:
+                    target.category = "Cliente" if d.get("client_name") else "Mantenimiento"
+
+                if existing:
+                    updated_d += 1
+                else:
+                    db.session.add(target)
+                    created_d += 1
             db.session.commit()
-            click.echo(f"✅ Directorio: {Directorio.query.count()}")
+            click.echo(f"✅ Directorio: {Directorio.query.count()} total ({created_d} nuevos, {updated_d} actualizados)")
 
             click.echo("\n🎉 Seeding completo.")
 

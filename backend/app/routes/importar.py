@@ -25,14 +25,47 @@ from app.utils.parse import parse_date, parse_int, parse_str
 bp = Blueprint("importar", __name__)
 
 
-def _rows(file_storage):
+def _rows(file_storage, sheet=None):
+    """Lee la hoja activa (o una con nombre concreto).
+
+    Detecta headers de 2 niveles: si la fila 1 tiene celdas que la fila 0 no,
+    los combina (útil para Pólizas con 'Garantía' / 'Inicio / Fin / Estatus').
+    """
     wb = load_workbook(BytesIO(file_storage.read()), data_only=True)
-    ws = wb.active
+    ws = wb[sheet] if (sheet and sheet in wb.sheetnames) else wb.active
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return [], []
-    headers = [str(h or "").strip() for h in rows[0]]
-    return headers, rows[1:]
+
+    row0 = list(rows[0])
+    row1 = list(rows[1]) if len(rows) > 1 else []
+
+    # Decide si fila 1 es sub-header: tiene celdas no-vacías donde fila 0 no
+    is_subheader = False
+    if row1:
+        for i, v in enumerate(row1):
+            if v and i < len(row0) and (row0[i] in (None, "")):
+                is_subheader = True
+                break
+
+    headers = []
+    if is_subheader:
+        for i, v in enumerate(row0):
+            sub = row1[i] if i < len(row1) else None
+            if v and sub:
+                headers.append(f"{str(v).strip()} {str(sub).strip()}")
+            elif sub:
+                headers.append(str(sub).strip())
+            elif v:
+                headers.append(str(v).strip())
+            else:
+                headers.append("")
+        data_rows = rows[2:]
+    else:
+        headers = [str(h or "").strip() for h in row0]
+        data_rows = rows[1:]
+
+    return headers, data_rows
 
 
 def _apply_non_empty(obj, **fields):
@@ -140,6 +173,24 @@ def import_polizas():
             existing = Poliza.query.filter_by(project=project).first()
 
         target = existing or Poliza(project=project or "—")
+        # Datos del Excel oficial — siempre sobrescribir fechas/plataforma/poliza/zona/status
+        sys_start = parse_date(g(row, "sysStart", "inicioSistema", "inicio del sistema", "sys start"))
+        pol_start = parse_date(g(row, "polStart", "inicioPoliza", "inicio", "garantía inicio", "garantia inicio"))
+        pol_end   = parse_date(g(row, "polEnd", "finPoliza", "fin", "garantía fin", "garantia fin"))
+        platform  = parse_str(g(row, "platform", "plataforma"))
+        pol_type  = parse_str(g(row, "poliza", "tipoPoliza", "tipo de poliza", "tipo de póliza"))
+        zona      = parse_str(g(row, "zona", "ubicación", "ubicacion"))
+        status    = parse_str(g(row, "status", "estatus", "garantía estatus", "garantia estatus"))
+
+        if sys_start is not None:   target.sys_start = sys_start
+        if pol_start is not None:   target.pol_start = pol_start
+        if pol_end is not None:     target.pol_end = pol_end
+        if platform:                target.platform = platform
+        if pol_type:                target.poliza = pol_type
+        if zona:                    target.zona = zona
+        if status:                  target.status = status
+
+        # Resto preserva info ya capturada
         _apply_non_empty(
             target,
             project=project,
@@ -147,15 +198,8 @@ def import_polizas():
             grupo=parse_str(g(row, "grupo", "gupo")),
             code=code,
             tarifa=parse_str(g(row, "tarifa")),
-            platform=parse_str(g(row, "platform", "plataforma")),
             panels=parse_str(g(row, "panels", "paneles")),
             inv=parse_str(g(row, "inv", "inversores")),
-            sys_start=parse_date(g(row, "sysStart", "inicioSistema", "inicio del sistema")),
-            pol_start=parse_date(g(row, "polStart", "inicioPoliza", "inicio")),
-            pol_end=parse_date(g(row, "polEnd", "finPoliza", "fin")),
-            status=parse_str(g(row, "status", "estatus")),
-            poliza=parse_str(g(row, "poliza", "tipoPoliza", "tipo de poliza")),
-            zona=parse_str(g(row, "zona", "ubicación", "ubicacion")),
             cuadrilla=parse_str(g(row, "cuadrilla")),
         )
         if existing:

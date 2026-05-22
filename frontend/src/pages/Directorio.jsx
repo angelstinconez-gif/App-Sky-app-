@@ -96,16 +96,64 @@ export default function Directorio() {
     toast('Eliminado'); load();
   };
 
+  // Cuenta cuántos contactos hay por proyecto (para indicador "+N más")
+  const contactsByProject = useMemo(() => {
+    const m = new Map();
+    items.forEach((r) => {
+      if (!r.project) return;
+      const k = r.project.toLowerCase();
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    return m;
+  }, [items]);
+
   const columns = useMemo(() => {
     const cols = [
-      { key: 'project', label: 'Proyecto' },
+      {
+        key: 'project', label: 'Proyecto',
+        render: (r) => {
+          const n = contactsByProject.get(r.project?.toLowerCase()) || 1;
+          return (
+            <div>
+              <div>{r.project}</div>
+              {n > 1 && (
+                <span style={{ fontSize: 10, color: 'var(--sky)', fontWeight: 600 }}>
+                  📇 {n} contactos
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
       { key: 'projectCode', label: 'Código' },
       { key: 'systemType', label: 'Sistema' },
-      { key: 'maintContact', label: 'Contacto Mantto' },
-      { key: 'maintPhone', label: 'Tel. Mantto' },
-      { key: 'clientName', label: 'Cliente' },
-      { key: 'clientCompany', label: 'Empresa Cliente' },
-      { key: 'clientEmail', label: 'Email Cliente' },
+      {
+        key: 'maintContact', label: 'Contactos Mantto',
+        render: (r) => (
+          <div style={{ fontSize: 12 }}>
+            {r.maintContact && <div>👤 {r.maintContact}{r.maintPhone ? ` · ${r.maintPhone}` : ''}</div>}
+            {r.maintContact2 && <div>👤 {r.maintContact2}{r.maintPhone2 ? ` · ${r.maintPhone2}` : ''}</div>}
+            {r.maintEmail && <div style={{ color: 'var(--gray-500)' }}>✉ {r.maintEmail}</div>}
+            {!r.maintContact && !r.maintContact2 && '—'}
+          </div>
+        ),
+      },
+      {
+        key: 'internalPm', label: 'PM Interno',
+        render: (r) => r.internalPm ? `${r.internalPm}${r.internalPhone ? ` · ${r.internalPhone}` : ''}` : '—',
+      },
+      {
+        key: 'clientName', label: 'Cliente',
+        render: (r) => (
+          <div style={{ fontSize: 12 }}>
+            {r.clientName && <div><strong>{r.clientName}</strong></div>}
+            {r.clientCompany && <div style={{ color: 'var(--gray-500)' }}>{r.clientCompany}</div>}
+            {r.clientPhone && <div>📞 {r.clientPhone}</div>}
+            {r.clientEmail && <div>✉ {r.clientEmail}</div>}
+            {!r.clientName && !r.clientCompany && '—'}
+          </div>
+        ),
+      },
     ];
     if (canWrite || canDelete) {
       cols.push({
@@ -113,13 +161,19 @@ export default function Directorio() {
         render: (r) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {canWrite && <button className="btn btn-sm" onClick={() => onEdit(r)}>Editar</button>}
+            {canWrite && (
+              <button className="btn btn-sm" title="Añadir otro contacto al mismo proyecto"
+                onClick={() => { setForm({ ...empty, project: r.project, projectCode: r.projectCode, systemType: r.systemType, clientCompany: r.clientCompany, clientName: r.clientName, category: r.category }); setEditingId(null); setOpen(true); }}>
+                + contacto
+              </button>
+            )}
             {canDelete && <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>×</button>}
           </div>
         ),
       });
     }
     return cols;
-  }, [canWrite, canDelete]);
+  }, [canWrite, canDelete, contactsByProject]);
 
   return (
     <div>
