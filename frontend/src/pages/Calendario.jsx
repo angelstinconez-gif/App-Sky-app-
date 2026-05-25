@@ -121,7 +121,7 @@ export default function Calendario() {
     setScheduleOpen(true);
   };
 
-  // Normaliza todos en {id, date, title, type, color, project}
+  // Normaliza todos en {id, date, title, type, color, project, tooltip, raw}
   const allItems = useMemo(() => {
     const ms = mants.map((m) => ({
       id: `m-${m.id}`,
@@ -130,6 +130,8 @@ export default function Calendario() {
       project: m.project || m.proyecto || '',
       type: 'mantenimiento',
       color: m.estado === 'Ejecutado' ? '#16a34a' : '#f59e0b',
+      tooltip: `🔧 ${m.tipo || 'Mantenimiento'}\nProyecto: ${m.project || m.proyecto || '—'}\nEstado: ${m.estado || '—'}\nCuadrilla: ${m.cuadrilla || '—'}\nResponsable: ${m.responsable || '—'}`,
+      raw: m,
     })).filter((x) => x.date);
     const tt = tks.map((t) => ({
       id: `t-${t.id}`,
@@ -138,6 +140,8 @@ export default function Calendario() {
       project: t.site || '',
       type: 'ticket',
       color: t.status === 'Cerrado' ? '#16a34a' : '#0EA5E9',
+      tooltip: `🎫 Ticket #${t.id}\n${t.title || ''}\nProyecto: ${t.site || '—'}\nPrioridad: ${t.priority || '—'}\nEstado: ${t.status || '—'}\nAsignado: ${t.assignedTo || '—'}\nApertura: ${t.openDate || '—'}\nCompromiso: ${t.dueDate || '—'}`,
+      raw: t,
     })).filter((x) => x.date);
     const ii = incs.map((i) => ({
       id: `i-${i.id}`,
@@ -146,10 +150,14 @@ export default function Calendario() {
       project: i.site || '',
       type: 'incidencia',
       color: i.status === 'cerrada' ? '#16a34a' : '#e11d48',
+      tooltip: `⚠️ Incidencia #${i.id}\nProyecto: ${i.site || '—'}\nCliente: ${i.client || '—'}\nPlataforma: ${i.platform || '—'}\nCódigo error: ${i.errCode || '—'}\nProblema: ${i.problem || '—'}\nPrioridad: ${i.priority || '—'}\nEstado: ${i.status || '—'}`,
+      raw: i,
     })).filter((x) => x.date);
     const ee = events.map((e) => ({
       id: `e-${e.id}`, date: e.eventDate, title: e.title,
       project: e.project || '', type: 'evento', color: e.color || '#8b5cf6',
+      tooltip: `📅 ${e.title}\nFecha: ${e.eventDate}\nTipo: ${e.eventType || 'evento'}`,
+      raw: e,
     }));
     const all = [...ms, ...tt, ...ii, ...ee].filter((x) => activeTypes.includes(x.type));
     if (!projectFilter.trim()) return all;
@@ -402,10 +410,18 @@ function MonthView({ cursor, items, canSchedule, onDayClick }) {
           >
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>{cell.day}</div>
             {cell.events.slice(0, 3).map((e) => (
-              <div key={e.id} title={e.title} style={{
-                background: e.color, color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 4,
-                marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{e.title}</div>
+              <div
+                key={e.id}
+                title={e.tooltip || e.title}
+                onClick={(evt) => { evt.stopPropagation(); }}
+                style={{
+                  background: e.color, color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 4,
+                  marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  cursor: 'help',
+                }}
+              >
+                {e.title}
+              </div>
             ))}
             {cell.events.length > 3 && <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>+{cell.events.length - 3} más</div>}
           </div>
@@ -475,12 +491,23 @@ function DayView({ cursor, items, canSchedule, onSchedule }) {
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {todays.map((e) => (
-            <li key={e.id} style={{
-              padding: 10, marginBottom: 6, borderRadius: 8,
-              borderLeft: `4px solid ${e.color}`, background: 'var(--gray-50, #f9fafb)',
-            }}>
-              <strong>{e.title}</strong>
-              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-500)' }}>· {e.type}</span>
+            <li key={e.id}
+              title={e.tooltip || e.title}
+              style={{
+                padding: 10, marginBottom: 6, borderRadius: 8,
+                borderLeft: `4px solid ${e.color}`, background: 'var(--gray-50, #f9fafb)',
+                cursor: 'help',
+              }}>
+              <div>
+                <strong>{e.title}</strong>
+                <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-500)' }}>· {e.type}</span>
+              </div>
+              {e.tooltip && (
+                <pre style={{
+                  fontSize: 11, color: 'var(--gray-600)', marginTop: 4,
+                  fontFamily: 'inherit', whiteSpace: 'pre-wrap', lineHeight: 1.4,
+                }}>{e.tooltip}</pre>
+              )}
             </li>
           ))}
         </ul>

@@ -38,6 +38,7 @@ export default function Directorio() {
   const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [category, setCategory] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
@@ -45,13 +46,24 @@ export default function Directorio() {
 
   const load = () => {
     setLoading(true);
+    // Filtra por proyecto en cliente; el backend ya soporta `q` y `category`.
     directorioApi.list({ q, category })
-      .then(setItems)
+      .then((data) => {
+        if (projectFilter.trim()) {
+          const f = projectFilter.toLowerCase().trim();
+          setItems(data.filter((d) =>
+            (d.project || '').toLowerCase().includes(f) ||
+            (d.projectCode || '').toLowerCase().includes(f)
+          ));
+        } else {
+          setItems(data);
+        }
+      })
       .catch(() => toast('Error al cargar', 'error'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [q, category]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [q, category, projectFilter]);
 
   useEffect(() => {
     polizasApi.list().then(setPolizas).catch(() => {});
@@ -207,8 +219,22 @@ export default function Directorio() {
       </div>
 
       <div className="filters-bar">
-        <input className="filter-input search-input" placeholder="Buscar proyecto, contacto, email..."
+        <input className="filter-input search-input" placeholder="Buscar contacto, email..."
           value={q} onChange={(e) => setQ(e.target.value)} />
+        <input
+          list="dir-filter-projects"
+          className="filter-input"
+          placeholder="🔍 Filtrar por proyecto..."
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
+        <datalist id="dir-filter-projects">
+          {polizas.map((p) => <option key={p.id} value={p.project}>{p.code}</option>)}
+        </datalist>
+        {projectFilter && (
+          <button className="btn btn-sm" onClick={() => setProjectFilter('')}>× Quitar</button>
+        )}
         <select className="filter-select" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">Todas las categorías</option>
           {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}

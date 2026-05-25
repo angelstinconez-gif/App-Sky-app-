@@ -22,6 +22,8 @@ import Reportes from './pages/Reportes';
 import Historial from './pages/Historial';
 import Usuarios from './pages/Usuarios';
 import Notificaciones from './pages/Notificaciones';
+import Viaticos from './pages/Viaticos';
+import Checklists from './pages/Checklists';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -61,8 +63,8 @@ export default function App() {
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-        <Route path="/incidencias" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Incidencias /></Protected>} />
-        <Route path="/tickets" element={<Protected><Tickets /></Protected>} />
+        <Route path="/incidencias" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Incidencias /></Protected>} />
+        <Route path="/tickets" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Tickets /></Protected>} />
         <Route path="/garantias" element={<Protected roles={['admin', 'mantenimiento']}><Garantias /></Protected>} />
         <Route path="/mantenimiento" element={<Protected roles={['admin', 'mantenimiento']}><Mantenimiento /></Protected>} />
         <Route path="/polizas" element={<Protected roles={['admin', 'mantenimiento']}><Polizas /></Protected>} />
@@ -70,7 +72,9 @@ export default function App() {
         <Route path="/cuadrillas" element={<Protected roles={['admin', 'operator']}><Cuadrillas /></Protected>} />
         <Route path="/tecnicos" element={<Protected><Tecnicos /></Protected>} />
         <Route path="/errores" element={<Protected roles={['admin']}><Errores /></Protected>} />
-        <Route path="/calendario" element={<Protected roles={['admin', 'operator']}><Calendario /></Protected>} />
+        <Route path="/calendario" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Calendario /></Protected>} />
+        <Route path="/viaticos" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Viaticos /></Protected>} />
+        <Route path="/checklists" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Checklists /></Protected>} />
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
         <Route path="/usuarios" element={<Protected roles={['admin']}><Usuarios /></Protected>} />

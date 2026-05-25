@@ -90,8 +90,12 @@ def register_seed_cli(app):
 
             from app.models.tecnico import Tecnico as _Tecnico
             from app.models.aviso import Aviso as _Aviso
+            from app.models.viatico import Viatico as _Viatico
+            from app.models.checklist import Checklist as _Checklist
             _try("crear tecnicos", lambda: _create_if_missing(_Tecnico))
             _try("crear avisos", lambda: _create_if_missing(_Aviso))
+            _try("crear viaticos", lambda: _create_if_missing(_Viatico))
+            _try("crear checklists", lambda: _create_if_missing(_Checklist))
             _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
             _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
 

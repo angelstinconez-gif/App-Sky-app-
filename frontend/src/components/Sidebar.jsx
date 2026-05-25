@@ -5,27 +5,32 @@ const ROLE_LABELS = {
   admin: 'Administrador',
   operator: 'Operador',
   mantenimiento: 'Mantenimiento',
+  viewer: 'Consulta',
 };
+
+const ALL = ['admin', 'operator', 'mantenimiento', 'viewer'];
 
 const NAV = [
   { section: 'Principal' },
-  { to: '/dashboard',      label: 'Dashboard',    icon: '📊', roles: ['admin', 'operator', 'mantenimiento'] },
-  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator', 'mantenimiento'] },
-  { to: '/tickets',        label: 'Tickets',      icon: '🎫', roles: ['admin', 'operator', 'mantenimiento'] },
+  { to: '/dashboard',      label: 'Dashboard',    icon: '📊', roles: ALL },
+  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ALL },
+  { to: '/tickets',        label: 'Tickets',      icon: '🎫', roles: ALL },
   { section: 'Servicio' },
   { to: '/garantias',      label: 'Garantías',    icon: '🛡️', roles: ['admin', 'mantenimiento'] },
   { to: '/mantenimiento',  label: 'Mantenimiento',icon: '🔧', roles: ['admin', 'mantenimiento'] },
   { to: '/polizas',        label: 'Pólizas',      icon: '📄', roles: ['admin', 'mantenimiento'] },
+  { to: '/viaticos',       label: 'Viáticos',     icon: '💵', roles: ['admin', 'operator', 'mantenimiento'] },
+  { to: '/checklists',     label: 'Checklists',   icon: '✅', roles: ['admin', 'operator', 'mantenimiento'] },
   { section: 'Catálogos' },
   { to: '/directorio',     label: 'Directorio',   icon: '📇', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/cuadrillas',     label: 'Cuadrillas',   icon: '👥', roles: ['admin', 'operator'] },
   { to: '/tecnicos',       label: 'Técnicos',     icon: '🧑‍🔧', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/errores',        label: 'Catálogo errores', icon: '📋', roles: ['admin'] },
   { section: 'Análisis' },
-  { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ['admin', 'operator'] },
+  { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ALL },
   { to: '/reportes',       label: 'Reportes',     icon: '📈', roles: ['admin', 'operator'] },
   { section: 'Sistema' },
-  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ['admin', 'operator', 'mantenimiento'] },
+  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ALL },
   { to: '/historial',      label: 'Historial',    icon: '🕓', roles: ['admin'] },
   { to: '/usuarios',       label: 'Usuarios',     icon: '👤', roles: ['admin'] },
 ];

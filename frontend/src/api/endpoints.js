@@ -44,6 +44,8 @@ export const avisosApi = {
   ...crud('/avisos'),
   listAll: () => api.get('/avisos', { params: { all: 1 } }).then((r) => r.data),
 };
+export const viaticosApi = crud('/viaticos');
+export const checklistsApi = crud('/checklists');
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');
