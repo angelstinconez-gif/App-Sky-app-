@@ -227,6 +227,60 @@ export default function Incidencias() {
     load();
   };
 
+  // ── Modal rápido para generar ticket desde una incidencia existente ──
+  const [genTicketFor, setGenTicketFor] = useState(null);  // incidencia seleccionada
+  const [genForm, setGenForm] = useState({
+    title: '', assignedTo: '', dueDate: '', tipo: 'Remota', description: '',
+  });
+
+  const openGenTicket = (inc) => {
+    setGenForm({
+      title: `${inc.classification || inc.equipment || 'Atención'} — ${inc.site || ''}`,
+      assignedTo: '',
+      dueDate: '',
+      tipo: 'Remota',
+      description: inc.notes || inc.problem || '',
+    });
+    setGenTicketFor(inc);
+  };
+
+  const onGenTicketSave = async () => {
+    if (!genTicketFor) return;
+    try {
+      // 1. Crear el ticket con datos de la incidencia
+      await ticketsApi.create({
+        title: genForm.title || `Atención — ${genTicketFor.site}`,
+        site: genTicketFor.site,
+        client: genTicketFor.client,
+        projectCode: genTicketFor.code,
+        priority: genTicketFor.priority || 'Intermedia',
+        status: 'Abierto',
+        assignedTo: genForm.assignedTo,
+        openDate: new Date().toISOString().slice(0, 10),
+        dueDate: genForm.dueDate,
+        description: genForm.description,
+        incidenciaId: genTicketFor.id,
+      });
+      // 2. Marcar la incidencia con ticket_alta = SI
+      await incidenciasApi.update(genTicketFor.id, {
+        ...genTicketFor,
+        ticketAlta: 'SI',
+        ticketDate: new Date().toISOString().slice(0, 10),
+      });
+      toast(`✓ Ticket generado para incidencia #${genTicketFor.id}`);
+      setGenTicketFor(null);
+      load();
+    } catch (e) {
+      toast(e?.response?.data?.message || 'Error al generar ticket', 'error');
+    }
+  };
+
+  // Helpers para detectar si la incidencia ya tiene ticket
+  const hasTicket = (r) => {
+    const t = (r.ticketAlta || '').toString().toUpperCase().trim();
+    return t === 'SI' || t === 'YES' || t === '1';
+  };
+
   const exportXlsx = () => downloadXLSX(items, 'Incidencias', `incidencias_${Date.now()}.xlsx`);
 
   const columns = useMemo(() => [
@@ -238,17 +292,29 @@ export default function Incidencias() {
     { key: 'errCode', label: 'Error' },
     { key: 'classification', label: 'Clasif.' },
     { key: 'incDate', label: 'Fecha', render: (r) => fmtDate(r.incDate) },
-    { key: 'ticketAlta', label: 'Ticket' },
+    {
+      key: 'ticketAlta', label: 'Ticket',
+      render: (r) => hasTicket(r)
+        ? <span className="badge s-vigente">✓ SI {r.ticketDate ? `· ${fmtDate(r.ticketDate)}` : ''}</span>
+        : <span className="badge s-abierta">Sin ticket</span>,
+    },
     { key: 'days', label: 'Días', render: (r) => (r.days != null ? `${r.days}d` : '—') },
     { key: 'status', label: 'Estado', render: (r) => <span className={`badge ${statusClass(r.status)}`}>{r.status}</span> },
     {
       key: '_actions', label: 'Acciones', sortable: false,
       render: (r) => (
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {canWrite && r.status === 'abierta' && (
             <>
               <button className="btn btn-sm" onClick={() => onEdit(r)}>Editar</button>
-              <button className="btn btn-sm btn-primary" onClick={() => setCloseModal(r)}>Cerrar</button>
+              {!hasTicket(r) && (
+                <button className="btn btn-sm btn-primary"
+                  title="Generar ticket a partir de esta incidencia"
+                  onClick={() => openGenTicket(r)}>
+                  🎫 Generar ticket
+                </button>
+              )}
+              <button className="btn btn-sm" onClick={() => setCloseModal(r)}>Cerrar</button>
             </>
           )}
           {canDelete && <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>×</button>}
@@ -288,7 +354,103 @@ export default function Incidencias() {
         </select>
       </div>
 
+      {/* ── Banner: incidencias abiertas sin ticket ── */}
+      {(() => {
+        const sinTicket = items.filter((r) => r.status === 'abierta' && !hasTicket(r));
+        if (sinTicket.length === 0 || !canWrite) return null;
+        return (
+          <div style={{
+            background: '#fff7ed', border: '1px solid #fed7aa',
+            borderLeft: '4px solid #f97316', borderRadius: 8,
+            padding: '10px 14px', marginBottom: 12,
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div style={{ flex: 1, fontSize: 13 }}>
+              <strong>{sinTicket.length} incidencia{sinTicket.length === 1 ? '' : 's'} abierta{sinTicket.length === 1 ? '' : 's'} sin ticket asignado.</strong>
+              <span style={{ color: 'var(--gray-600)', marginLeft: 6 }}>
+                Genera un ticket para dar seguimiento usando el botón "🎫 Generar ticket" en cada fila.
+              </span>
+            </div>
+            <button className="btn btn-sm btn-primary"
+              onClick={() => openGenTicket(sinTicket[0])}>
+              🎫 Generar para la más reciente
+            </button>
+          </div>
+        );
+      })()}
+
       {loading ? <div className="empty"><span className="spinner" /></div> : <DataTable columns={columns} data={items} />}
+
+      {/* ── Modal: Generar ticket desde incidencia ── */}
+      <Modal
+        open={!!genTicketFor} onClose={() => setGenTicketFor(null)}
+        title={genTicketFor ? `🎫 Generar ticket para incidencia #${genTicketFor.id}` : ''}
+        footer={
+          <>
+            <button className="btn" onClick={() => setGenTicketFor(null)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={onGenTicketSave}>Crear ticket</button>
+          </>
+        }
+      >
+        {genTicketFor && (
+          <div className="form-grid">
+            <div className="form-row full" style={{
+              background: 'var(--gray-50)', padding: 10, borderRadius: 8, marginBottom: 6,
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6 }}>
+                <strong>Proyecto:</strong> {genTicketFor.site || '—'} ·{' '}
+                <strong>Cliente:</strong> {genTicketFor.client || '—'}<br />
+                <strong>Plataforma:</strong> {genTicketFor.platform || '—'} ·{' '}
+                <strong>Error:</strong> {genTicketFor.errCode || '—'} ·{' '}
+                <strong>Prioridad:</strong> {genTicketFor.priority || '—'}
+              </div>
+            </div>
+            <FormRow label="Título del ticket" full>
+              <input value={genForm.title}
+                onChange={(e) => setGenForm({ ...genForm, title: e.target.value })} />
+            </FormRow>
+            <FormRow label="Asignado a">
+              <select value={genForm.assignedTo}
+                onChange={(e) => setGenForm({ ...genForm, assignedTo: e.target.value })}>
+                <option value="">— elegir —</option>
+                <optgroup label="👤 Usuarios">
+                  {assignees.filter((a) => a.type === 'user').map((a) => (
+                    <option key={a.id} value={a.value}>{a.label} ({a.role})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="👥 Cuadrillas">
+                  {assignees.filter((a) => a.type === 'cuadrilla').map((a) => (
+                    <option key={a.id} value={a.value}>{a.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="🧑‍🔧 Técnicos">
+                  {assignees.filter((a) => a.type === 'tecnico').map((a) => (
+                    <option key={a.id} value={a.value}>{a.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </FormRow>
+            <FormRow label="Tipo de atención">
+              <select value={genForm.tipo}
+                onChange={(e) => setGenForm({ ...genForm, tipo: e.target.value })}>
+                <option>Remota</option>
+                <option>Visita en sitio</option>
+                <option>Garantía</option>
+              </select>
+            </FormRow>
+            <FormRow label="Fecha compromiso">
+              <input type="date" value={genForm.dueDate}
+                onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })} />
+            </FormRow>
+            <FormRow label="Descripción" full>
+              <textarea rows="3" value={genForm.description}
+                onChange={(e) => setGenForm({ ...genForm, description: e.target.value })}
+                placeholder="Detalles de la atención necesaria" />
+            </FormRow>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={openModal} onClose={() => setOpenModal(false)}

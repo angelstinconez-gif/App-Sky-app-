@@ -154,49 +154,74 @@ def register_seed_cli(app):
             db.session.commit()
             click.echo(f"✅ Errores: {ErrorCatalog.query.count()}")
 
-            # Pólizas: combina demo + catálogo completo (247 plantas del Excel)
+            # Pólizas: combina catálogo completo (244 plantas del Excel) + demo
+            FULL_POLIZAS = []
             try:
-                from app.seeds.polizas_full import FULL_POLIZAS
-            except ImportError:
-                FULL_POLIZAS = []
-            all_polizas = (FULL_POLIZAS or []) + SEED_POLIZAS  # primero los del Excel
+                from app.seeds.polizas_full import FULL_POLIZAS as _FP
+                FULL_POLIZAS = list(_FP)
+                click.echo(f"   📦 polizas_full.py cargado: {len(FULL_POLIZAS)} plantas")
+            except Exception as e:
+                click.echo(f"   ⚠️  No se pudo cargar polizas_full.py: {e}")
+
+            all_polizas = FULL_POLIZAS + SEED_POLIZAS
+            created_p, updated_p, errors_p = 0, 0, 0
 
             for p in all_polizas:
-                key_code = p.get("code")
-                key_proj = p.get("project")
-                existing = None
-                if key_code:
-                    existing = Poliza.query.filter_by(code=key_code).first()
-                if not existing and key_proj:
-                    existing = Poliza.query.filter_by(project=key_proj).first()
+                try:
+                    key_code = p.get("code")
+                    key_proj = p.get("project")
+                    if not key_code and not key_proj:
+                        continue
 
-                if existing:
-                    # UPSERT — fechas/plataforma/poliza vienen del Excel oficial, SOBRESCRIBIR
-                    if p.get("sysStart"): existing.sys_start = parse_date(p["sysStart"])
-                    if p.get("polStart"): existing.pol_start = parse_date(p["polStart"])
-                    if p.get("polEnd"):   existing.pol_end = parse_date(p["polEnd"])
-                    if p.get("platform"): existing.platform = p["platform"]
-                    if p.get("poliza"):   existing.poliza = p["poliza"]
-                    if p.get("status"):   existing.status = p["status"]
-                    if p.get("zona"):     existing.zona = p["zona"]
-                    # Estos sí preservan info ya capturada por usuario
-                    if p.get("grupo") and not existing.grupo: existing.grupo = p["grupo"]
-                    if p.get("tarifa") and not existing.tarifa: existing.tarifa = p["tarifa"]
-                    if p.get("cuadrilla") and not existing.cuadrilla: existing.cuadrilla = p["cuadrilla"]
-                    continue
+                    existing = None
+                    if key_code:
+                        existing = Poliza.query.filter_by(code=key_code).first()
+                    if not existing and key_proj:
+                        existing = Poliza.query.filter_by(project=key_proj).first()
 
-                db.session.add(Poliza(
-                    item=p.get("item"), grupo=p.get("grupo"), code=p.get("code"),
-                    project=p["project"], tarifa=p.get("tarifa"),
-                    platform=p.get("platform"), panels=p.get("panels"), inv=p.get("inv"),
-                    sys_start=parse_date(p.get("sysStart")),
-                    pol_start=parse_date(p.get("polStart")),
-                    pol_end=parse_date(p.get("polEnd")),
-                    status=p.get("status"), poliza=p.get("poliza"),
-                    zona=p.get("zona"), cuadrilla=p.get("cuadrilla"),
-                ))
-            db.session.commit()
-            click.echo(f"✅ Pólizas (con plantas del Excel): {Poliza.query.count()}")
+                    if existing:
+                        # UPSERT — fechas/plataforma/poliza/zona/status del Excel oficial SOBRESCRIBEN
+                        if p.get("sysStart"): existing.sys_start = parse_date(p["sysStart"])
+                        if p.get("polStart"): existing.pol_start = parse_date(p["polStart"])
+                        if p.get("polEnd"):   existing.pol_end = parse_date(p["polEnd"])
+                        if p.get("platform"): existing.platform = p["platform"]
+                        if p.get("poliza"):   existing.poliza = p["poliza"]
+                        if p.get("status"):   existing.status = p["status"]
+                        if p.get("zona"):     existing.zona = p["zona"]
+                        if p.get("code") and not existing.code:    existing.code = p["code"]
+                        if p.get("project") and not existing.project: existing.project = p["project"]
+                        # Estos preservan info ya capturada por usuario
+                        if p.get("grupo") and not existing.grupo:     existing.grupo = p["grupo"]
+                        if p.get("tarifa") and not existing.tarifa:   existing.tarifa = p["tarifa"]
+                        if p.get("cuadrilla") and not existing.cuadrilla: existing.cuadrilla = p["cuadrilla"]
+                        updated_p += 1
+                    else:
+                        db.session.add(Poliza(
+                            item=p.get("item") if isinstance(p.get("item"), (int, float)) else None,
+                            grupo=p.get("grupo"), code=p.get("code"),
+                            project=p.get("project") or "—",
+                            tarifa=p.get("tarifa"),
+                            platform=p.get("platform"),
+                            panels=p.get("panels"), inv=p.get("inv"),
+                            sys_start=parse_date(p.get("sysStart")),
+                            pol_start=parse_date(p.get("polStart")),
+                            pol_end=parse_date(p.get("polEnd")),
+                            status=p.get("status"), poliza=p.get("poliza"),
+                            zona=p.get("zona"), cuadrilla=p.get("cuadrilla"),
+                        ))
+                        created_p += 1
+                except Exception as e:
+                    errors_p += 1
+                    click.echo(f"   ⚠️  Error en planta {p.get('code') or p.get('project')}: {e}")
+
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                click.echo(f"   ⚠️  Commit pólizas falló: {e}")
+
+            total_p = Poliza.query.count()
+            click.echo(f"✅ Pólizas: {total_p} total ({created_p} creadas, {updated_p} actualizadas, {errors_p} con error)")
 
             for i in SEED_INCIDENCIAS:
                 db.session.add(Incidencia(

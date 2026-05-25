@@ -1,10 +1,16 @@
 export function fmtDate(d) {
   if (!d) return '—';
   try {
+    // Si viene como "YYYY-MM-DD" tratarlo como fecha local (no UTC) para evitar
+    // el shift de día por zona horaria.
+    const s = String(d).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split('-').map((n) => parseInt(n, 10));
+      const dt = new Date(y, m - 1, day);
+      return dt.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    }
     return new Date(d).toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
+      day: '2-digit', month: '2-digit', year: '2-digit',
     });
   } catch {
     return d;
