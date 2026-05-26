@@ -117,9 +117,9 @@ export default function Tickets() {
     {
       key: '_actions', label: 'Acciones', sortable: false,
       render: (r) => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          {canWrite && <button className="btn btn-sm" onClick={() => onEdit(r)}>Editar</button>}
-          {canDelete && <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>×</button>}
+        <div style={{ display: 'inline-flex', gap: 4, flexWrap: 'nowrap' }}>
+          {canWrite && <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}>✏️</button>}
+          {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}>×</button>}
         </div>
       ),
     },

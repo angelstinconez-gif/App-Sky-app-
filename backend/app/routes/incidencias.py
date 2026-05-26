@@ -148,6 +148,30 @@ def close_incidencia(item_id):
         f"Incidencia #{inc.id} cerrada por {inc.closed_by}",
         new={"result": inc.close_result, "closedBy": inc.closed_by},
     )
+
+    # ── Guardar como Lección Aprendida si hay solución/result ──
+    try:
+        from app.models.leccion import Leccion
+        sol = inc.close_result or inc.solution
+        if sol and not Leccion.query.filter_by(incidencia_id=inc.id).first():
+            lec = Leccion(
+                incidencia_id=inc.id,
+                project=inc.site,
+                platform=inc.platform,
+                err_code=inc.err_code,
+                classification=inc.classification,
+                equipment=inc.equipment,
+                problem=inc.problem,
+                cause=inc.cause,
+                solution=sol,
+                autor=inc.closed_by,
+                autor_email=inc.closed_by_email,
+                source="incidencia",
+            )
+            db.session.add(lec)
+    except Exception as e:
+        print(f"⚠️  No se pudo registrar lección: {e}")
+
     db.session.commit()
     _notify_admin_if_not_admin("cerrada", inc)
     return jsonify(inc.to_dict())

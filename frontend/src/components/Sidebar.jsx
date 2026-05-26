@@ -5,32 +5,35 @@ const ROLE_LABELS = {
   admin: 'Administrador',
   operator: 'Operador',
   mantenimiento: 'Mantenimiento',
+  tecnico: 'Técnico',
   viewer: 'Consulta',
 };
 
-const ALL = ['admin', 'operator', 'mantenimiento', 'viewer'];
+const ALL = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
 
 const NAV = [
   { section: 'Principal' },
   { to: '/dashboard',      label: 'Dashboard',    icon: '📊', roles: ALL },
-  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ALL },
+  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator', 'mantenimiento', 'viewer'] },
   { to: '/tickets',        label: 'Tickets',      icon: '🎫', roles: ALL },
   { section: 'Servicio' },
   { to: '/garantias',      label: 'Garantías',    icon: '🛡️', roles: ['admin', 'mantenimiento'] },
-  { to: '/mantenimiento',  label: 'Mantenimiento',icon: '🔧', roles: ['admin', 'mantenimiento'] },
+  { to: '/mantenimiento',  label: 'Mantenimiento',icon: '🔧', roles: ['admin', 'mantenimiento', 'tecnico'] },
   { to: '/polizas',        label: 'Pólizas',      icon: '📄', roles: ['admin', 'mantenimiento'] },
   { to: '/viaticos',       label: 'Viáticos',     icon: '💵', roles: ['admin', 'operator', 'mantenimiento'] },
-  { to: '/checklists',     label: 'Checklists',   icon: '✅', roles: ['admin', 'operator', 'mantenimiento'] },
+  { to: '/checklists',     label: 'Checklists',   icon: '✅', roles: ['admin', 'operator', 'mantenimiento', 'tecnico'] },
+  { section: 'Conocimiento' },
+  { to: '/lecciones',      label: 'Lecciones aprendidas', icon: '💡', roles: ['admin', 'operator', 'mantenimiento', 'tecnico'] },
+  { to: '/errores',        label: 'Catálogo errores', icon: '📋', roles: ['admin'] },
   { section: 'Catálogos' },
   { to: '/directorio',     label: 'Directorio',   icon: '📇', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/cuadrillas',     label: 'Cuadrillas',   icon: '👥', roles: ['admin', 'operator'] },
   { to: '/tecnicos',       label: 'Técnicos',     icon: '🧑‍🔧', roles: ['admin', 'operator', 'mantenimiento'] },
-  { to: '/errores',        label: 'Catálogo errores', icon: '📋', roles: ['admin'] },
   { section: 'Análisis' },
   { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ALL },
   { to: '/reportes',       label: 'Reportes',     icon: '📈', roles: ['admin', 'operator'] },
   { section: 'Sistema' },
-  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ALL },
+  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ['admin'] },
   { to: '/historial',      label: 'Historial',    icon: '🕓', roles: ['admin'] },
   { to: '/usuarios',       label: 'Usuarios',     icon: '👤', roles: ['admin'] },
 ];
@@ -44,10 +47,13 @@ export default function Sidebar({ open, onClose }) {
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <div className="sb-header">
-        <div className="sb-logo">PV</div>
+        <div className="sb-logo">
+          <img src="/sky-sense-logo.svg" alt="SKY SENSE" style={{ height: 28, width: 'auto' }}
+            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = 'CI'; }} />
+        </div>
         <div className="sb-brand">
-          SKY PV Monitor
-          <span>Sistema FV</span>
+          Centro de Incidencias
+          <span>SKY SENSE</span>
         </div>
       </div>
 

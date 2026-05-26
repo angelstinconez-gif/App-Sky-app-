@@ -46,6 +46,7 @@ export const avisosApi = {
 };
 export const viaticosApi = crud('/viaticos');
 export const checklistsApi = crud('/checklists');
+export const leccionesApi = crud('/lecciones');
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');

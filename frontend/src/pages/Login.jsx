@@ -35,9 +35,12 @@ export default function Login() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-logo">PV</div>
-        <h1>SKY PV Monitor</h1>
-        <p className="subtitle">Sistema de Incidencias Fotovoltaicas</p>
+        <div className="login-logo" style={{ background: 'transparent', padding: 0 }}>
+          <img src="/sky-sense-logo.svg" alt="SKY SENSE" style={{ width: 200, maxWidth: '100%' }}
+            onError={(e) => { e.target.style.display = 'none'; }} />
+        </div>
+        <h1>Centro de Incidencias</h1>
+        <p className="subtitle">Plataforma de gestión SKY SENSE</p>
 
         {error && <div className="login-error">{error}</div>}
 

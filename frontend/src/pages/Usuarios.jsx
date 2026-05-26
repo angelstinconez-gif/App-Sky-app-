@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast';
 import { usersApi } from '../api/endpoints';
 import { fmtDateTime, downloadXLSX } from '../utils/format';
 
-const ROLES = ['admin', 'operator', 'mantenimiento'];
+const ROLES = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
 
 const empty = { name: '', email: '', role: 'operator', initials: '', active: true, password: '', passwordConfirm: '' };
 

@@ -16,11 +16,14 @@ const TITLES = {
   '/historial':     { title: 'Historial',     sub: 'Registro de cambios' },
   '/usuarios':      { title: 'Usuarios',      sub: 'Gestión de cuentas' },
   '/notificaciones':{ title: 'Notificaciones',sub: 'Canales y suscripciones' },
+  '/viaticos':      { title: 'Viáticos',      sub: 'Gastos de visita' },
+  '/checklists':    { title: 'Checklists',    sub: 'Visitas post-venta' },
+  '/lecciones':     { title: 'Lecciones aprendidas', sub: 'Base de conocimiento' },
 };
 
 export default function Topbar({ onMenu, actions }) {
   const { pathname } = useLocation();
-  const info = TITLES[pathname] || { title: 'SKY PV Monitor', sub: '' };
+  const info = TITLES[pathname] || { title: 'Centro de Incidencias', sub: '' };
 
   return (
     <header className="topbar">

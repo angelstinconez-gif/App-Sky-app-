@@ -24,6 +24,7 @@ import Usuarios from './pages/Usuarios';
 import Notificaciones from './pages/Notificaciones';
 import Viaticos from './pages/Viaticos';
 import Checklists from './pages/Checklists';
+import Lecciones from './pages/Lecciones';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -66,7 +67,6 @@ export default function App() {
         <Route path="/incidencias" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Incidencias /></Protected>} />
         <Route path="/tickets" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Tickets /></Protected>} />
         <Route path="/garantias" element={<Protected roles={['admin', 'mantenimiento']}><Garantias /></Protected>} />
-        <Route path="/mantenimiento" element={<Protected roles={['admin', 'mantenimiento']}><Mantenimiento /></Protected>} />
         <Route path="/polizas" element={<Protected roles={['admin', 'mantenimiento']}><Polizas /></Protected>} />
         <Route path="/directorio" element={<Protected><Directorio /></Protected>} />
         <Route path="/cuadrillas" element={<Protected roles={['admin', 'operator']}><Cuadrillas /></Protected>} />
@@ -74,11 +74,13 @@ export default function App() {
         <Route path="/errores" element={<Protected roles={['admin']}><Errores /></Protected>} />
         <Route path="/calendario" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'viewer']}><Calendario /></Protected>} />
         <Route path="/viaticos" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Viaticos /></Protected>} />
-        <Route path="/checklists" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Checklists /></Protected>} />
+        <Route path="/checklists" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><Checklists /></Protected>} />
+        <Route path="/lecciones" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><Lecciones /></Protected>} />
+        <Route path="/mantenimiento" element={<Protected roles={['admin', 'mantenimiento', 'tecnico']}><Mantenimiento /></Protected>} />
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
         <Route path="/usuarios" element={<Protected roles={['admin']}><Usuarios /></Protected>} />
-        <Route path="/notificaciones" element={<Protected><Notificaciones /></Protected>} />
+        <Route path="/notificaciones" element={<Protected roles={['admin']}><Notificaciones /></Protected>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </ToastProvider>

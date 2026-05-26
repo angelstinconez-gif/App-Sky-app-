@@ -68,4 +68,6 @@ class Incidencia(db.Model):
             "closedBy": self.closed_by,
             "closeResult": self.close_result,
             "days": self.days_open(),
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
         }

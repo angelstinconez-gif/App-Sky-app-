@@ -120,6 +120,24 @@ def close_ticket(item_id):
     t.closed_by = data.get("responsible") or claims.get("name")
     t.closed_by_email = claims.get("email")
     log_change("tickets", "cerrar", f"Ticket #{t.id} cerrado por {t.closed_by}", new=t.to_dict())
+
+    # ── Guardar como Lección Aprendida si hay resultado ──
+    try:
+        from app.models.leccion import Leccion
+        if t.result and not Leccion.query.filter_by(ticket_id=t.id).first():
+            lec = Leccion(
+                ticket_id=t.id,
+                project=t.site,
+                problem=t.title,
+                solution=t.result,
+                autor=t.closed_by,
+                autor_email=t.closed_by_email,
+                source="ticket",
+            )
+            db.session.add(lec)
+    except Exception as e:
+        print(f"⚠️  No se pudo registrar lección desde ticket: {e}")
+
     db.session.commit()
     _notify_admin_if_not_admin("cerrado", t)
     return jsonify(t.to_dict())
