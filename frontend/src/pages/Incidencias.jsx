@@ -326,8 +326,33 @@ export default function Incidencias() {
     { key: 'site', label: 'Proyecto' },
     { key: 'client', label: 'Cliente' },
     { key: 'priority', label: 'Prioridad', render: (r) => <span className={`badge ${priorityClass(r.priority)}`}>{r.priority || '—'}</span> },
-    { key: 'errCode', label: 'Error' },
-    { key: 'classification', label: 'Clasif.' },
+    {
+      key: 'cause', label: 'Causa',
+      render: (r) => (
+        <div style={{ maxWidth: 200, fontSize: 11, lineHeight: 1.35, color: 'var(--gray-700)' }}
+          title={r.cause}>
+          {r.cause ? (r.cause.length > 80 ? `${r.cause.slice(0, 80)}…` : r.cause) : '—'}
+        </div>
+      ),
+    },
+    {
+      key: 'solution', label: 'Solución',
+      render: (r) => (
+        <div style={{ maxWidth: 200, fontSize: 11, lineHeight: 1.35, color: 'var(--gray-700)' }}
+          title={r.solution}>
+          {r.solution ? (r.solution.length > 80 ? `${r.solution.slice(0, 80)}…` : r.solution) : '—'}
+        </div>
+      ),
+    },
+    {
+      key: 'notes', label: 'Nota monitoreo',
+      render: (r) => (
+        <div style={{ maxWidth: 180, fontSize: 11, lineHeight: 1.35, color: 'var(--gray-600)', fontStyle: r.notes ? 'normal' : 'italic' }}
+          title={r.notes}>
+          {r.notes ? (r.notes.length > 70 ? `${r.notes.slice(0, 70)}…` : r.notes) : '—'}
+        </div>
+      ),
+    },
     { key: 'createdAt', label: 'Creada', render: (r) => fmtDate(r.createdAt) },
     { key: 'incDate', label: 'F. incidencia', render: (r) => fmtDate(r.incDate) },
     {

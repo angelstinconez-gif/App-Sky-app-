@@ -30,14 +30,38 @@ def list_m():
 
 
 def _apply(m: Mantenimiento, data: dict):
+    import json
     m.project = parse_str(data.get("project")) or m.project
     m.code = parse_str(data.get("code"))
     m.tipo = parse_str(data.get("tipo"))
     m.fecha_programada = parse_date(data.get("fechaProgramada"))
     m.fecha_ejecutada = parse_date(data.get("fechaEjecutada"))
     m.estado = parse_str(data.get("estado")) or m.estado
-    m.cuadrilla = parse_str(data.get("cuadrilla"))
+
+    # Cuadrilla: aceptar tanto id como nombre
+    cid = parse_int(data.get("cuadrillaId"))
+    if cid:
+        m.cuadrilla_id = cid
+        try:
+            from app.models.cuadrilla import Cuadrilla
+            c = db.session.get(Cuadrilla, cid)
+            if c:
+                m.cuadrilla = c.nombre
+        except Exception:
+            pass
+    else:
+        m.cuadrilla = parse_str(data.get("cuadrilla"))
+
     m.responsable = parse_str(data.get("responsable"))
+
+    # Técnicos: lista de IDs
+    tids = data.get("tecnicosIds")
+    if isinstance(tids, list):
+        ids = [int(x) for x in tids if str(x).lstrip("-").isdigit()]
+        m.tecnicos_ids = json.dumps(ids) if ids else None
+    elif "tecnicosIds" in data:
+        m.tecnicos_ids = None
+
     m.descripcion = parse_str(data.get("descripcion"))
     m.resultados = parse_str(data.get("resultados"))
     m.poliza_id = parse_int(data.get("polizaId"))

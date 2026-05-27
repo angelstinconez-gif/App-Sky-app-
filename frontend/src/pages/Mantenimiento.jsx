@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ImportButton from '../components/ImportButton';
-import { mantenimientoApi, polizasApi, assigneesApi, importarApi } from '../api/endpoints';
+import { mantenimientoApi, polizasApi, assigneesApi, importarApi, cuadrillasApi, tecnicosApi } from '../api/endpoints';
+import { useNavigate } from 'react-router-dom';
 import { fmtDate, downloadXLSX } from '../utils/format';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -13,7 +14,7 @@ const ESTADOS = ['Programado', 'En curso', 'Completado', 'Cancelado'];
 const empty = {
   project: '', code: '', tipo: 'Preventivo', estado: 'Programado',
   fechaProgramada: '', fechaEjecutada: '',
-  cuadrilla: '', responsable: '',
+  cuadrilla: '', cuadrillaId: '', tecnicosIds: [], responsable: '',
   descripcion: '', resultados: '',
 };
 
@@ -35,6 +36,9 @@ export default function Mantenimiento() {
 
   const [polizas, setPolizas] = useState([]);
   const [assignees, setAssignees] = useState([]);
+  const [cuadrillas, setCuadrillas] = useState([]);
+  const [tecnicos, setTecnicos] = useState([]);
+  const navigate = useNavigate();
 
   const load = () => {
     setLoading(true);
@@ -47,7 +51,29 @@ export default function Mantenimiento() {
   useEffect(() => {
     polizasApi.list().then(setPolizas).catch(() => {});
     assigneesApi.list().then(setAssignees).catch(() => {});
+    cuadrillasApi.list().then(setCuadrillas).catch(() => {});
+    tecnicosApi.list().then(setTecnicos).catch(() => {});
   }, []);
+
+  // Cuando se elige cuadrilla → pre-llena técnicos miembros
+  const onCuadrillaChange = (cid) => {
+    setForm((f) => {
+      const c = cuadrillas.find((x) => String(x.id) === String(cid));
+      const miembros = c?.miembrosIds || [];
+      const combined = [...new Set([...(f.tecnicosIds || []), ...miembros])];
+      return { ...f, cuadrillaId: cid, cuadrilla: c?.nombre || '', tecnicosIds: combined };
+    });
+  };
+
+  const toggleTecnico = (id) => {
+    const n = Number(id);
+    setForm((f) => ({
+      ...f,
+      tecnicosIds: (f.tecnicosIds || []).includes(n)
+        ? f.tecnicosIds.filter((x) => x !== n)
+        : [...(f.tecnicosIds || []), n],
+    }));
+  };
 
   const onProjectChange = (value) => {
     setForm((f) => ({ ...f, project: value }));
@@ -90,6 +116,19 @@ export default function Mantenimiento() {
       { key: 'fechaProgramada', label: 'Programado', render: (r) => fmtDate(r.fechaProgramada) },
       { key: 'fechaEjecutada', label: 'Ejecutado', render: (r) => fmtDate(r.fechaEjecutada) },
       { key: 'cuadrilla', label: 'Cuadrilla' },
+      {
+        key: 'tecnicosData', label: 'Técnicos',
+        render: (r) => {
+          const ts = r.tecnicosData || [];
+          if (!ts.length) return '—';
+          return (
+            <span style={{ fontSize: 11 }} title={ts.map((t) => t.nombre).join(', ')}>
+              🧑‍🔧 {ts.length} {ts.slice(0, 2).map((t) => t.nombre.split(' ')[0]).join(', ')}
+              {ts.length > 2 && ` +${ts.length - 2}`}
+            </span>
+          );
+        },
+      },
       { key: 'responsable', label: 'Responsable' },
     ];
     if (canWrite || canDelete) {
@@ -193,13 +232,26 @@ export default function Mantenimiento() {
           </FormRow>
 
           <FormRow label="Cuadrilla">
-            <select value={form.cuadrilla} onChange={(e) => setForm({ ...form, cuadrilla: e.target.value })}>
-              <option value="">—</option>
-              {assignees.filter((a) => a.type === 'cuadrilla').map((a) => (
-                <option key={a.id} value={a.value}>{a.label}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <select value={form.cuadrillaId || ''}
+                onChange={(e) => onCuadrillaChange(e.target.value)}
+                style={{ flex: 1 }}>
+                <option value="">— Sin cuadrilla —</option>
+                {cuadrillas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} {c.zona ? `(${c.zona})` : ''}
+                    {c.miembrosIds?.length ? ` · ${c.miembrosIds.length} miembros` : ''}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-sm"
+                title="Ir a editar cuadrillas en otra pestaña"
+                onClick={() => window.open('/cuadrillas', '_blank')}>
+                ✏️
+              </button>
+            </div>
           </FormRow>
+
           <FormRow label="Responsable (usuario)">
             <select value={form.responsable} onChange={(e) => setForm({ ...form, responsable: e.target.value })}>
               <option value="">—</option>
@@ -207,6 +259,36 @@ export default function Mantenimiento() {
                 <option key={a.id} value={a.value}>{a.label}</option>
               ))}
             </select>
+          </FormRow>
+
+          <FormRow label={`Técnicos asignados (${(form.tecnicosIds || []).length})`} full>
+            <div style={{
+              maxHeight: 180, overflowY: 'auto',
+              border: '1px solid var(--gray-200, #e5e7eb)', borderRadius: 8,
+              padding: 8, background: 'var(--card-bg, #fff)',
+            }}>
+              {tecnicos.length === 0 ? (
+                <div style={{ color: 'var(--gray-400)', fontSize: 12 }}>
+                  No hay técnicos. <a href="/tecnicos" target="_blank">Crear técnico →</a>
+                </div>
+              ) : tecnicos.map((t) => (
+                <label key={t.id} style={{
+                  display: 'flex', gap: 8, alignItems: 'center', padding: '3px 4px',
+                  fontSize: 12, cursor: 'pointer',
+                }}>
+                  <input type="checkbox"
+                    checked={(form.tecnicosIds || []).includes(t.id)}
+                    onChange={() => toggleTecnico(t.id)} />
+                  <strong>{t.nombre}</strong>
+                  <span style={{ color: 'var(--gray-500)', fontSize: 10 }}>
+                    {t.rol || ''} {t.telefono ? `· ${t.telefono}` : ''} {t.zona ? `· ${t.zona}` : ''}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+              💡 Al elegir cuadrilla se añaden automáticamente sus miembros.
+            </div>
           </FormRow>
 
           <FormRow label="Descripción" full>

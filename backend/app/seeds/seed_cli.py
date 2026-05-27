@@ -64,6 +64,14 @@ def register_seed_cli(app):
                 "cuadrillas", "lider_id",
                 "ALTER TABLE cuadrillas ADD COLUMN lider_id INTEGER"
             ))
+            _try("mantenimientos.cuadrilla_id", lambda: _add_col(
+                "mantenimientos", "cuadrilla_id",
+                "ALTER TABLE mantenimientos ADD COLUMN cuadrilla_id INTEGER"
+            ))
+            _try("mantenimientos.tecnicos_ids", lambda: _add_col(
+                "mantenimientos", "tecnicos_ids",
+                "ALTER TABLE mantenimientos ADD COLUMN tecnicos_ids TEXT"
+            ))
 
             # viaticos.ticket_id: convertir a VARCHAR(20) si es INTEGER
             def _convert_viatico_ticket():

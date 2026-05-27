@@ -153,6 +153,12 @@ export default function Garantias() {
       { key: 'equipment', label: 'Equipo' },
       { key: 'brand', label: 'Marca' },
       { key: 'model', label: 'Modelo' },
+      {
+        key: 'sn', label: 'SN Inversor',
+        render: (r) => r.sn
+          ? <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{r.sn}</span>
+          : '—',
+      },
       { key: 'error', label: 'Error' },
       { key: 'supplier', label: 'Proveedor' },
       { key: 'ticket', label: 'Ticket' },
