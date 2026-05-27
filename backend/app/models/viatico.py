@@ -8,7 +8,7 @@ class Viatico(db.Model):
     __tablename__ = "viaticos"
 
     id = db.Column(db.Integer, primary_key=True)
-    ticket_id = db.Column(db.Integer, index=True)         # sin FK estricta (compat)
+    ticket_id = db.Column(db.String(20), index=True)      # 't123' o 'M45' (mantenimiento)
     project = db.Column(db.String(200), index=True)
     code = db.Column(db.String(80))
     responsable = db.Column(db.String(160))

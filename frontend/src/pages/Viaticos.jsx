@@ -3,7 +3,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { viaticosApi, ticketsApi, polizasApi } from '../api/endpoints';
+import { viaticosApi, ticketsApi, polizasApi, mantenimientoApi } from '../api/endpoints';
 import { fmtDate, downloadXLSX } from '../utils/format';
 
 const ESTADOS = ['Solicitado', 'Aprobado', 'Comprobado', 'Rechazado'];
@@ -37,6 +37,7 @@ export default function Viaticos() {
 
   const [items, setItems] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [mants, setMants] = useState([]);
   const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState('');
@@ -53,19 +54,45 @@ export default function Viaticos() {
   useEffect(() => {
     ticketsApi.list().then(setTickets).catch(() => {});
     polizasApi.list().then(setPolizas).catch(() => {});
+    mantenimientoApi.list().then(setMants).catch(() => {});
   }, []);
 
-  // Cuando elige un ticket, autocompleta proyecto/código
-  const onTicketChange = (id) => {
-    const t = tickets.find((x) => String(x.id) === String(id));
-    setForm((f) => ({
-      ...f,
-      ticketId: id,
-      project: t?.site || f.project,
-      code: t?.projectCode || f.code,
-      responsable: t?.assignedTo || f.responsable,
-    }));
+  // Cuando elige una orden (ticket o mantenimiento), autocompleta proyecto/código
+  const onOrdenChange = (val) => {
+    if (!val) {
+      setForm((f) => ({ ...f, ticketId: '' }));
+      return;
+    }
+    const [kind, id] = val.split(':');
+    if (kind === 't') {
+      const t = tickets.find((x) => String(x.id) === String(id));
+      setForm((f) => ({
+        ...f,
+        ticketId: id,
+        project: t?.site || f.project,
+        code: t?.projectCode || f.code,
+        responsable: t?.assignedTo || f.responsable,
+        notas: t ? `🎫 Ticket #${id} · ${t.title || ''}` : f.notas,
+      }));
+    } else if (kind === 'm') {
+      const m = mants.find((x) => String(x.id) === String(id));
+      setForm((f) => ({
+        ...f,
+        ticketId: `M${id}`,    // prefijo M para indicar mantenimiento
+        project: m?.project || f.project,
+        code: m?.code || f.code,
+        responsable: m?.responsable || m?.cuadrilla || f.responsable,
+        notas: m ? `🔧 Mantenimiento #${id} · ${m.tipo || ''} — ${m.project || ''}` : f.notas,
+      }));
+    }
   };
+
+  // Valor mostrado en el selector
+  const ordenValue = (() => {
+    if (!form.ticketId) return '';
+    if (String(form.ticketId).startsWith('M')) return `m:${String(form.ticketId).slice(1)}`;
+    return `t:${form.ticketId}`;
+  })();
 
   // Cuando elige proyecto desde datalist
   const onProjectChange = (val) => {
@@ -109,7 +136,16 @@ export default function Viaticos() {
 
   const columns = useMemo(() => {
     const cols = [
-      { key: 'ticketId', label: 'Ticket', render: (r) => r.ticketId ? `#${r.ticketId}` : '—' },
+      {
+        key: 'ticketId', label: 'Orden',
+        render: (r) => {
+          if (!r.ticketId) return '—';
+          const v = String(r.ticketId);
+          return v.startsWith('M')
+            ? <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 10, fontSize: 11 }}>🔧 M{v.slice(1)}</span>
+            : <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: 10, fontSize: 11 }}>🎫 #{v}</span>;
+        },
+      },
       { key: 'project', label: 'Proyecto' },
       { key: 'responsable', label: 'Responsable' },
       { key: 'tagCarro', label: 'TAG / Placa' },
@@ -179,12 +215,19 @@ export default function Viaticos() {
         }
       >
         <div className="form-grid">
-          <FormRow label="Ticket asociado">
-            <select value={form.ticketId || ''} onChange={(e) => onTicketChange(e.target.value)}>
-              <option value="">— Sin ticket —</option>
-              {tickets.map((t) => (
-                <option key={t.id} value={t.id}>#{t.id} · {t.title} ({t.site || '—'})</option>
-              ))}
+          <FormRow label="Orden asociada (ticket o mantto)">
+            <select value={ordenValue} onChange={(e) => onOrdenChange(e.target.value)}>
+              <option value="">— Sin orden —</option>
+              <optgroup label="🎫 Tickets">
+                {tickets.map((t) => (
+                  <option key={`t-${t.id}`} value={`t:${t.id}`}>#{t.id} · {t.title} ({t.site || '—'})</option>
+                ))}
+              </optgroup>
+              <optgroup label="🔧 Mantenimientos">
+                {mants.map((m) => (
+                  <option key={`m-${m.id}`} value={`m:${m.id}`}>M{m.id} · {m.tipo || 'Mant.'} — {m.project || m.proyecto || '—'}</option>
+                ))}
+              </optgroup>
             </select>
           </FormRow>
           <FormRow label="Proyecto">

@@ -65,6 +65,23 @@ def register_seed_cli(app):
                 "ALTER TABLE cuadrillas ADD COLUMN lider_id INTEGER"
             ))
 
+            # viaticos.ticket_id: convertir a VARCHAR(20) si es INTEGER
+            def _convert_viatico_ticket():
+                if not insp.has_table("viaticos"):
+                    return
+                for c in insp.get_columns("viaticos"):
+                    if c["name"] == "ticket_id" and "INT" in str(c["type"]).upper():
+                        with db.engine.begin() as conn:
+                            try:
+                                conn.execute(text("ALTER TABLE viaticos ALTER COLUMN ticket_id TYPE VARCHAR(20)"))
+                            except Exception:
+                                # SQLite no soporta ALTER TYPE — recrear columna
+                                conn.execute(text("ALTER TABLE viaticos ADD COLUMN ticket_id_new VARCHAR(20)"))
+                                conn.execute(text("UPDATE viaticos SET ticket_id_new = CAST(ticket_id AS TEXT)"))
+                        click.echo("  ➕ viaticos.ticket_id convertido a VARCHAR")
+                        break
+            _try("viaticos.ticket_id type", _convert_viatico_ticket)
+
             # ── Recrear tablas con cambio masivo de esquema ──
             def _maybe_recreate(model, key_cols):
                 if not insp.has_table(model.__tablename__):

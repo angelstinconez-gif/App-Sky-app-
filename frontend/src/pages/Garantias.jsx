@@ -3,7 +3,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { garantiasApi, polizasApi } from '../api/endpoints';
+import { garantiasApi, polizasApi, ticketsApi } from '../api/endpoints';
 import { fmtDate, downloadXLSX } from '../utils/format';
 
 const STATUSES = [
@@ -61,6 +61,7 @@ export default function Garantias() {
   const canDelete = hasRole('admin');
 
   const [items, setItems] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -77,7 +78,10 @@ export default function Garantias() {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [statusFilter, q]);
-  useEffect(() => { polizasApi.list().then(setPolizas).catch(() => {}); }, []);
+  useEffect(() => {
+    polizasApi.list().then(setPolizas).catch(() => {});
+    ticketsApi.list().then(setTickets).catch(() => {});
+  }, []);
 
   // ── Auto-fill desde Pólizas (igual que Incidencias) ──
   const onProjectAutofill = (changedField) => {
@@ -123,9 +127,19 @@ export default function Garantias() {
   };
   const onSave = async () => {
     if (!form.project) return toast('El proyecto es obligatorio', 'error');
+    // Ticket obligatorio salvo "caso especial"
+    if (!form.ticket && !form._casoEspecial) {
+      return toast('Asocia un ticket o marca "caso especial"', 'error');
+    }
     try {
-      if (editingId) await garantiasApi.update(editingId, form);
-      else await garantiasApi.create(form);
+      const payload = { ...form };
+      delete payload._casoEspecial;
+      delete payload._justifEspecial;
+      if (form._casoEspecial) {
+        payload.comments = `⚠️ GARANTÍA ESPECIAL: ${form._justifEspecial || 'sin justificación'}\n\n${form.comments || ''}`;
+      }
+      if (editingId) await garantiasApi.update(editingId, payload);
+      else await garantiasApi.create(payload);
       toast(editingId ? 'Actualizada' : 'Creada'); setOpen(false); load();
     } catch (e) {
       toast(e?.response?.data?.message || 'Error al guardar', 'error');
@@ -296,8 +310,30 @@ export default function Garantias() {
           <FormRow label="Contacto proveedor">
             <input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
           </FormRow>
-          <FormRow label="Ticket relacionado">
-            <input value={form.ticket} onChange={(e) => setForm({ ...form, ticket: e.target.value })} />
+          <FormRow label="Ticket relacionado *">
+            <select value={form.ticket || ''}
+              disabled={form._casoEspecial}
+              onChange={(e) => {
+                const id = e.target.value;
+                const t = tickets.find((x) => String(x.id) === String(id));
+                setForm({ ...form, ticket: id, project: form.project || t?.site || '' });
+              }}>
+              <option value="">— Elegir ticket —</option>
+              {tickets.map((t) => (
+                <option key={t.id} value={t.id}>#{t.id} · {t.title} ({t.site || '—'})</option>
+              ))}
+            </select>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, fontSize: 12 }}>
+              <input type="checkbox" checked={!!form._casoEspecial}
+                onChange={(e) => setForm({ ...form, _casoEspecial: e.target.checked, ticket: e.target.checked ? '' : form.ticket })} />
+              ⚠️ Caso especial — garantía sin ticket previo
+            </label>
+            {form._casoEspecial && (
+              <input style={{ marginTop: 4 }}
+                placeholder="Justificación del caso especial..."
+                value={form._justifEspecial || ''}
+                onChange={(e) => setForm({ ...form, _justifEspecial: e.target.value })} />
+            )}
           </FormRow>
 
           <FormRow label="Fecha de alta">

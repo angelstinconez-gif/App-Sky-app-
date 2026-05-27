@@ -55,6 +55,7 @@ export default function Incidencias() {
 
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(null);
+  const [viewModal, setViewModal] = useState(null);   // incidencia para visualización (solo lectura)
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
 
@@ -343,6 +344,9 @@ export default function Incidencias() {
         const info = polizaInfo(r.code || r.site);
         return (
           <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
+            {/* Botón "Ver detalle" — disponible para TODOS los roles, siempre */}
+            <button className="btn btn-sm" title="Ver detalle (solo lectura)"
+              onClick={() => setViewModal(r)}>👁</button>
             {canWrite && r.status === 'abierta' && (
               <>
                 <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}>✏️</button>
@@ -572,6 +576,72 @@ export default function Incidencias() {
                   onChange={(e) => setGenForm({ ...genForm, description: e.target.value })}
                   placeholder="Detalles de la atención necesaria" />
               </FormRow>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* ── Modal: VISTA DETALLE (solo lectura, todos los roles) ── */}
+      <Modal
+        open={!!viewModal} onClose={() => setViewModal(null)}
+        title={viewModal ? `👁 Incidencia #${viewModal.id} (solo lectura)` : ''}
+        wide
+        footer={<button className="btn btn-primary" onClick={() => setViewModal(null)}>Cerrar</button>}
+      >
+        {viewModal && (() => {
+          const info = polizaInfo(viewModal.code || viewModal.site);
+          const Field = ({ label, value, full }) => (
+            <div className={`form-row ${full ? 'full' : ''}`}>
+              <label style={{ fontSize: 11, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</label>
+              <div style={{ padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 6, minHeight: 32, fontSize: 13 }}>
+                {value || <span style={{ color: 'var(--gray-400)' }}>—</span>}
+              </div>
+            </div>
+          );
+          return (
+            <div>
+              {/* Encabezado con badges */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                <span className={`badge ${priorityClass(viewModal.priority)}`}>{viewModal.priority || 's/p'}</span>
+                <span className={`badge ${statusClass(viewModal.status)}`}>{viewModal.status}</span>
+                {hasTicket(viewModal)
+                  ? <span className="badge s-vigente">🎫 Con ticket {viewModal.ticketDate && `· ${fmtDate(viewModal.ticketDate)}`}</span>
+                  : <span className="badge s-abierta">Sin ticket</span>}
+                <span style={{
+                  background: info.vigente ? '#dcfce7' : '#fef3c7',
+                  color: info.vigente ? '#065f46' : '#92400e',
+                  padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                }}>
+                  Póliza: {info.msg}
+                </span>
+              </div>
+
+              <div className="form-grid">
+                <Field label="Plataforma" value={viewModal.platform} />
+                <Field label="Código proyecto" value={viewModal.code} />
+                <Field label="Proyecto" value={viewModal.site} />
+                <Field label="Cliente" value={viewModal.client} />
+                <Field label="Código de error" value={viewModal.errCode} />
+                <Field label="Clasificación" value={viewModal.classification} />
+                <Field label="Equipo" value={viewModal.equipment} />
+                <Field label="Responsable" value={viewModal.responsible} />
+                <Field label="Fecha incidencia" value={fmtDate(viewModal.incDate)} />
+                <Field label="Fecha creación" value={fmtDate(viewModal.createdAt)} />
+                <Field label="Días abierta" value={viewModal.days != null ? `${viewModal.days}d` : null} />
+                <Field label="Última modificación" value={fmtDate(viewModal.lastMod || viewModal.updatedAt)} />
+                <Field label="Problema (síntoma)" value={viewModal.problem} full />
+                <Field label="Causa" value={viewModal.cause} full />
+                <Field label="Solución aplicada" value={viewModal.solution} full />
+                <Field label="Notas" value={viewModal.notes} full />
+                <Field label="Comentarios" value={viewModal.comments} full />
+                {viewModal.status === 'cerrada' && (
+                  <>
+                    <Field label="Cerrada por" value={viewModal.closedBy} />
+                    <Field label="Fecha cierre" value={fmtDate(viewModal.closedAt)} />
+                    <Field label="Resultado del cierre" value={viewModal.closeResult} full />
+                  </>
+                )}
+              </div>
             </div>
           );
         })()}

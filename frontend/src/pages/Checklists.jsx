@@ -110,9 +110,19 @@ export default function Checklists() {
   };
   const onSave = async () => {
     if (!form.project) return toast('Proyecto obligatorio', 'error');
+    // Ticket obligatorio salvo "caso especial"
+    if (!form.ticketId && !form._casoEspecial) {
+      return toast('Asocia un ticket o marca "caso especial"', 'error');
+    }
     try {
-      if (editingId) await checklistsApi.update(editingId, form);
-      else await checklistsApi.create(form);
+      const payload = { ...form };
+      delete payload._casoEspecial;
+      delete payload._justifEspecial;
+      if (form._casoEspecial) {
+        payload.observaciones = `⚠️ CASO ESPECIAL: ${form._justifEspecial || 'sin justificación'}\n\n${form.observaciones || ''}`;
+      }
+      if (editingId) await checklistsApi.update(editingId, payload);
+      else await checklistsApi.create(payload);
       toast(editingId ? 'Actualizado' : 'Creado'); setOpen(false); load();
     } catch (e) { toast(e?.response?.data?.message || 'Error', 'error'); }
   };
@@ -156,7 +166,7 @@ export default function Checklists() {
   return (
     <div>
       <div className="section-header">
-        <h2>Checklists post-venta</h2>
+        <h2>Checklists de visita</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{items.length} visitas</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button className="btn btn-sm" onClick={() => downloadXLSX(items, 'Checklists', `checklists_${Date.now()}.xlsx`)}>⬇ Exportar</button>
@@ -181,7 +191,7 @@ export default function Checklists() {
 
       <Modal
         open={open} onClose={() => setOpen(false)}
-        title={editingId ? `Checklist #${editingId}` : 'Nuevo checklist post-venta'}
+        title={editingId ? `Checklist #${editingId}` : 'Nuevo checklist de visita'}
         wide
         footer={
           <>
@@ -210,13 +220,26 @@ export default function Checklists() {
 
         {tab === 'general' && (
           <div className="form-grid">
-            <Row label="Ticket asociado">
-              <select value={form.ticketId || ''} onChange={(e) => onTicketChange(e.target.value)}>
-                <option value="">— Sin ticket —</option>
+            <Row label="Ticket asociado *">
+              <select value={form.ticketId || ''}
+                onChange={(e) => onTicketChange(e.target.value)}
+                disabled={form._casoEspecial}>
+                <option value="">— Elegir ticket —</option>
                 {tickets.map((t) => (
                   <option key={t.id} value={t.id}>#{t.id} · {t.title}</option>
                 ))}
               </select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, fontSize: 12 }}>
+                <input type="checkbox" checked={!!form._casoEspecial}
+                  onChange={(e) => setForm({ ...form, _casoEspecial: e.target.checked, ticketId: e.target.checked ? '' : form.ticketId })} />
+                ⚠️ Caso especial — checklist sin ticket previo
+              </label>
+              {form._casoEspecial && (
+                <input style={{ marginTop: 4 }}
+                  placeholder="Justificación del caso especial..."
+                  value={form._justifEspecial || ''}
+                  onChange={(e) => setForm({ ...form, _justifEspecial: e.target.value })} />
+              )}
             </Row>
             <Row label="Fecha de visita">
               <input type="date" value={form.fechaVisita?.slice(0, 10) || ''}

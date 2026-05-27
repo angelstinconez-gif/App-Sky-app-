@@ -17,7 +17,7 @@ const TITLES = {
   '/usuarios':      { title: 'Usuarios',      sub: 'Gestión de cuentas' },
   '/notificaciones':{ title: 'Notificaciones',sub: 'Canales y suscripciones' },
   '/viaticos':      { title: 'Viáticos',      sub: 'Gastos de visita' },
-  '/checklists':    { title: 'Checklists',    sub: 'Visitas post-venta' },
+  '/checklists':    { title: 'Checklists',    sub: 'Visitas de revisión' },
   '/lecciones':     { title: 'Lecciones aprendidas', sub: 'Base de conocimiento' },
 };
 

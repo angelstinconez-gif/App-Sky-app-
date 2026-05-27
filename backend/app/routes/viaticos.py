@@ -33,7 +33,7 @@ def list_v():
 
 
 def _apply(v: Viatico, data: dict):
-    v.ticket_id = parse_int(data.get("ticketId"))
+    v.ticket_id = parse_str(data.get("ticketId"))
     v.project = parse_str(data.get("project"))
     v.code = parse_str(data.get("code"))
     v.responsable = parse_str(data.get("responsable"))

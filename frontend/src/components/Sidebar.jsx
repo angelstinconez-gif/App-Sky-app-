@@ -14,7 +14,7 @@ const ALL = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
 const NAV = [
   { section: 'Principal' },
   { to: '/dashboard',      label: 'Dashboard',    icon: '📊', roles: ALL },
-  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator', 'mantenimiento', 'viewer'] },
+  { to: '/incidencias',    label: 'Incidencias',  icon: '⚠️', roles: ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'] },
   { to: '/tickets',        label: 'Tickets',      icon: '🎫', roles: ALL },
   { section: 'Servicio' },
   { to: '/garantias',      label: 'Garantías',    icon: '🛡️', roles: ['admin', 'mantenimiento'] },
