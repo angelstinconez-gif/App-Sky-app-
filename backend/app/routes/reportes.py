@@ -16,6 +16,51 @@ from app.utils.decorators import role_required
 bp = Blueprint("reportes", __name__)
 
 
+@bp.route("/tickets-por-proyecto", methods=["GET"])
+@jwt_required()
+def tickets_por_proyecto():
+    """Contador de tickets por proyecto: total, abiertos, cerrados, vencidos."""
+    today = datetime.utcnow().date()
+    tickets = Ticket.query.all()
+    bucket = {}
+    for t in tickets:
+        key = (t.site or "—").strip() or "—"
+        if key not in bucket:
+            bucket[key] = {
+                "project": key, "code": t.project_code or "",
+                "client": t.client or "",
+                "total": 0, "abiertos": 0, "en_proceso": 0, "cerrados": 0,
+                "vencidos": 0, "criticos": 0,
+                "ultimaFecha": None,
+            }
+        b = bucket[key]
+        b["total"] += 1
+        status = (t.status or "").strip()
+        if status.lower() == "cerrado":
+            b["cerrados"] += 1
+        elif status.lower() in ("en proceso", "en_proceso", "en espera de proveedor"):
+            b["en_proceso"] += 1
+        else:
+            b["abiertos"] += 1
+        if status.lower() != "cerrado" and t.due_date and t.due_date < today:
+            b["vencidos"] += 1
+        if (t.priority or "").lower() == "critico":
+            b["criticos"] += 1
+        if t.open_date:
+            cur = b.get("ultimaFecha")
+            iso = t.open_date.isoformat()
+            if not cur or iso > cur:
+                b["ultimaFecha"] = iso
+        if not b["client"] and t.client:
+            b["client"] = t.client
+        if not b["code"] and t.project_code:
+            b["code"] = t.project_code
+
+    out = list(bucket.values())
+    out.sort(key=lambda x: (-x["abiertos"] - x["en_proceso"], -x["total"]))
+    return jsonify(out)
+
+
 def _days_since(d):
     if not d:
         return None
@@ -133,6 +178,34 @@ def reporte_general():
             <td>{_status_badge(g.status)}</td>
             {d_cell}
         </tr>"""
+
+    # ── Tickets por proyecto (top 12 por actividad) ──
+    bucket_tk = {}
+    for t in tickets:
+        key = (t.site or "—").strip() or "—"
+        if key not in bucket_tk:
+            bucket_tk[key] = {"project": key, "code": t.project_code or "",
+                              "total": 0, "abiertos": 0, "cerrados": 0, "vencidos": 0}
+        b = bucket_tk[key]
+        b["total"] += 1
+        if (t.status or "").lower() == "cerrado":
+            b["cerrados"] += 1
+        else:
+            b["abiertos"] += 1
+            if t.due_date and t.due_date < today:
+                b["vencidos"] += 1
+    tk_proj_rows = sorted(bucket_tk.values(), key=lambda x: -x["total"])[:12]
+    tk_proj_table = "".join(
+        f"""<tr>
+            <td>{(r['project'])[:36]}</td>
+            <td style="font-family:monospace;font-size:10px">{r['code'] or '—'}</td>
+            <td style="text-align:right"><strong>{r['total']}</strong></td>
+            <td style="text-align:right;color:#DC2626;font-weight:700">{r['abiertos']}</td>
+            <td style="text-align:right;color:#16A34A">{r['cerrados']}</td>
+            <td style="text-align:right;color:#DC2626;font-weight:700">{r['vencidos']}</td>
+        </tr>"""
+        for r in tk_proj_rows
+    )
 
     # ── Análisis PV: solo plantas vigentes con datos del mes actual ──
     mes_idx = today.month - 1
@@ -319,6 +392,12 @@ tr:hover td{{background:#F8FAFC}}
   <div class="section-title">🛡 Garantías Activas ({len(g_abiertas)})</div>
   <table><thead><tr><th>Proyecto</th><th>Equipo</th><th>Marca</th><th>Falla</th><th>Estado</th><th>Días</th></tr></thead>
   <tbody>{g_rows or '<tr><td colspan="6" style="text-align:center;color:#94A3B8">Sin garantías activas.</td></tr>'}</tbody></table>
+</div>
+
+<div class="section">
+  <div class="section-title">📊 Tickets por proyecto (top {len(tk_proj_rows)})</div>
+  <table><thead><tr><th>Proyecto</th><th>Código</th><th style="text-align:right">Total</th><th style="text-align:right">Activos</th><th style="text-align:right">Cerrados</th><th style="text-align:right">Vencidos</th></tr></thead>
+  <tbody>{tk_proj_table or '<tr><td colspan="6" style="text-align:center;color:#94A3B8">Sin tickets.</td></tr>'}</tbody></table>
 </div>
 
 <div class="section">

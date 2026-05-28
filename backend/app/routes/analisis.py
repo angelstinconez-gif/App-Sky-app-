@@ -77,13 +77,14 @@ def list_analisis():
             d["codigo"] = pol.code
         out.append(d)
 
-    # Filtro por mes (sólo devolver garantizado/generado del mes elegido)
+    # Mes solicitado: añadimos atajos sin pisar los dicts originales
     mes_filter = args.get("mes")
     if mes_filter and mes_filter.lower() in MONTHS:
         m = mes_filter.lower()
         for d in out:
-            d["garantizadoMes"] = d["garantizado"].get(m)
-            d["generadoMes"] = d.get("generadoMes", {}).get(m) if isinstance(d.get("generadoMes"), dict) else None
+            d["garantizadoMesFiltro"] = (d.get("garantizado") or {}).get(m)
+            gen_dict = d.get("generadoMes") or {}
+            d["generadoMesFiltro"] = gen_dict.get(m) if isinstance(gen_dict, dict) else None
 
     return jsonify(out)
 

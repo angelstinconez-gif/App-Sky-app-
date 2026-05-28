@@ -39,7 +39,9 @@ export default function Analisis() {
   const filtered = useMemo(() => {
     if (!q.trim()) return items;
     const f = q.toLowerCase();
-    return items.filter((p) => (p.project || '').toLowerCase().includes(f)
+    return items.filter((p) =>
+      (p.project || '').toLowerCase().includes(f)
+      || (p.codigo || '').toLowerCase().includes(f)
       || (p.responsable || '').toLowerCase().includes(f)
       || (p.proveedor || '').toLowerCase().includes(f));
   }, [items, q]);
@@ -72,6 +74,12 @@ export default function Analisis() {
   };
 
   const columns = [
+    {
+      key: 'codigo', label: 'Código',
+      render: (r) => r.codigo
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{r.codigo}</span>
+        : <span style={{ color: 'var(--gray-400)' }}>—</span>,
+    },
     { key: 'project', label: 'Proyecto' },
     { key: 'potenciaKwp', label: 'Potencia kWp', render: (r) => fmt(r.potenciaKwp) },
     { key: 'plataforma', label: 'Plataforma' },
