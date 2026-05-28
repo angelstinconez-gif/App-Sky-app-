@@ -10,6 +10,7 @@ from app.models.incidencia import Incidencia
 from app.models.ticket import Ticket
 from app.models.garantia import Garantia
 from app.models.poliza import Poliza
+from app.models.analisis import AnalisisPlanta, MONTHS
 from app.utils.decorators import role_required
 
 bp = Blueprint("reportes", __name__)
@@ -78,7 +79,12 @@ def reporte_general():
     # ── HTML ──
     fecha_str = today.strftime("%d de %B de %Y").replace("January", "enero").replace("February", "febrero").replace("March", "marzo").replace("April", "abril").replace("May", "mayo").replace("June", "junio").replace("July", "julio").replace("August", "agosto").replace("September", "septiembre").replace("October", "octubre").replace("November", "noviembre").replace("December", "diciembre")
 
-    # Filas incidencias
+    def _short(t, n=120):
+        if not t: return '—'
+        s = str(t).replace('\n', ' ').strip()
+        return (s[:n] + '…') if len(s) > n else s
+
+    # Filas incidencias — ahora con Problema / Causa / Solución
     inc_rows = ""
     for i in incs[:15]:
         d = _days_since(i.inc_date)
@@ -87,8 +93,9 @@ def reporte_general():
             <td>{(i.site or '')[:30]}</td>
             <td>{(i.client or '')[:20]}</td>
             <td>{_priority_badge(i.priority)}</td>
-            <td style="font-family:monospace">{i.err_code or '—'}</td>
-            <td>{i.classification or '—'}</td>
+            <td style="font-size:10px">{_short(i.problem, 90)}</td>
+            <td style="font-size:10px;color:#475569">{_short(i.cause, 90)}</td>
+            <td style="font-size:10px;color:#15803d">{_short(i.solution, 90)}</td>
             {d_cell}
         </tr>"""
 
@@ -125,6 +132,59 @@ def reporte_general():
             <td>{g.error or '—'}</td>
             <td>{_status_badge(g.status)}</td>
             {d_cell}
+        </tr>"""
+
+    # ── Análisis PV: solo plantas vigentes con datos del mes actual ──
+    mes_idx = today.month - 1
+    mes_nombre = MONTHS[mes_idx]
+    pol_vigentes_set = {(p.project or "").strip().lower() for p in pol_vigentes}
+    analisis = AnalisisPlanta.query.all()
+    pv_rows = []
+    sum_gar = sum_gen = 0
+    cumplen_n = 0
+    for a in analisis:
+        key = (a.project or "").strip().lower()
+        if key not in pol_vigentes_set:
+            continue
+        import json as _json
+        try:
+            gar = _json.loads(a.garantizado or "{}").get(mes_nombre)
+            gen = _json.loads(a.generado_mes or "{}").get(mes_nombre)
+        except Exception:
+            gar, gen = None, None
+        if not gar:
+            continue
+        pct = round((gen / gar) * 100, 1) if gen and gar > 0 else None
+        cumple = pct is not None and pct >= 100
+        if cumple: cumplen_n += 1
+        sum_gar += gar
+        if gen: sum_gen += gen
+        pv_rows.append({
+            "project": a.project, "potencia": a.potencia_kwp,
+            "gar": gar, "gen": gen, "pct": pct, "cumple": cumple,
+            "fallas": a.fallas, "responsable": a.responsable,
+        })
+    pv_rows.sort(key=lambda x: (x["pct"] if x["pct"] is not None else -1))
+    pct_global = round((sum_gen / sum_gar) * 100, 1) if sum_gar > 0 else 0
+
+    pv_table = ""
+    for r in pv_rows[:30]:
+        pct_str = f"{r['pct']}%" if r["pct"] is not None else "—"
+        color = "#15803D" if r["cumple"] else ("#DC2626" if r["pct"] is not None else "#94A3B8")
+        pv_table += f"""<tr>
+            <td>{(r['project'] or '')[:38]}</td>
+            <td style="text-align:right">{r['potencia']:.1f}</td>
+            <td style="text-align:right">{r['gar']:.0f}</td>
+            <td style="text-align:right">{(r['gen'] or 0):.0f}</td>
+            <td style="text-align:right;font-weight:700;color:{color}">{pct_str}</td>
+            <td style="font-size:10px">{(r['fallas'] or '')[:60]}</td>
+        </tr>""" if r["potencia"] else f"""<tr>
+            <td>{(r['project'] or '')[:38]}</td>
+            <td style="text-align:right;color:#94A3B8">—</td>
+            <td style="text-align:right">{r['gar']:.0f}</td>
+            <td style="text-align:right">{(r['gen'] or 0):.0f}</td>
+            <td style="text-align:right;font-weight:700;color:{color}">{pct_str}</td>
+            <td style="font-size:10px">{(r['fallas'] or '')[:60]}</td>
         </tr>"""
 
     # Pólizas por vencer
@@ -245,8 +305,8 @@ tr:hover td{{background:#F8FAFC}}
 
 <div class="section">
   <div class="section-title">🔴 Incidencias (últimas {len(incs[:15])})</div>
-  <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Prioridad</th><th>Cód. Error</th><th>Clasificación</th><th>Días</th></tr></thead>
-  <tbody>{inc_rows or '<tr><td colspan="6" style="text-align:center;color:#94A3B8">Sin incidencias.</td></tr>'}</tbody></table>
+  <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Prioridad</th><th>Problema</th><th>Causa</th><th>Solución</th><th>Días</th></tr></thead>
+  <tbody>{inc_rows or '<tr><td colspan="7" style="text-align:center;color:#94A3B8">Sin incidencias.</td></tr>'}</tbody></table>
 </div>
 
 <div class="section">
@@ -259,6 +319,21 @@ tr:hover td{{background:#F8FAFC}}
   <div class="section-title">🛡 Garantías Activas ({len(g_abiertas)})</div>
   <table><thead><tr><th>Proyecto</th><th>Equipo</th><th>Marca</th><th>Falla</th><th>Estado</th><th>Días</th></tr></thead>
   <tbody>{g_rows or '<tr><td colspan="6" style="text-align:center;color:#94A3B8">Sin garantías activas.</td></tr>'}</tbody></table>
+</div>
+
+<div class="section">
+  <div class="section-title">☀ Análisis de datos — Plantas PV vigentes (mes: {mes_nombre.capitalize()})</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="kpi-card"><div class="lbl">Plantas analizadas</div><div class="val" style="color:#0EA5E9;font-size:22px">{len(pv_rows)}</div></div>
+    <div class="kpi-card"><div class="lbl">Garantizado ({mes_nombre[:3]})</div><div class="val" style="color:#8B5CF6;font-size:22px">{sum_gar:,.0f}</div><div class="sub">kWh</div></div>
+    <div class="kpi-card"><div class="lbl">Generado ({mes_nombre[:3]})</div><div class="val" style="color:#F59E0B;font-size:22px">{sum_gen:,.0f}</div><div class="sub">kWh</div></div>
+    <div class="kpi-card"><div class="lbl">Cumplimiento</div><div class="val" style="color:{'#15803D' if pct_global >= 100 else '#DC2626'};font-size:22px">{pct_global}%</div><div class="sub">{cumplen_n} / {len(pv_rows)} cumplen</div></div>
+  </div>
+  <table><thead><tr><th>Proyecto</th><th style="text-align:right">kWp</th><th style="text-align:right">Garantizado</th><th style="text-align:right">Generado</th><th style="text-align:right">%</th><th>Fallas / notas</th></tr></thead>
+  <tbody>{pv_table or '<tr><td colspan="6" style="text-align:center;color:#94A3B8">Sin datos del mes.</td></tr>'}</tbody></table>
+  <div style="font-size:10px;color:#94A3B8;margin-top:6px">
+    Sólo se incluyen plantas con póliza vigente y datos del mes en curso.
+  </div>
 </div>
 
 <div class="section">

@@ -118,11 +118,13 @@ def register_seed_cli(app):
             from app.models.viatico import Viatico as _Viatico
             from app.models.checklist import Checklist as _Checklist
             from app.models.leccion import Leccion as _Leccion
+            from app.models.analisis import AnalisisPlanta as _Analisis
             _try("crear tecnicos", lambda: _create_if_missing(_Tecnico))
             _try("crear avisos", lambda: _create_if_missing(_Aviso))
             _try("crear viaticos", lambda: _create_if_missing(_Viatico))
             _try("crear checklists", lambda: _create_if_missing(_Checklist))
             _try("crear lecciones", lambda: _create_if_missing(_Leccion))
+            _try("crear analisis_plantas", lambda: _create_if_missing(_Analisis))
             _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
             _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
 
@@ -326,6 +328,40 @@ def register_seed_cli(app):
                     created_d += 1
             db.session.commit()
             click.echo(f"✅ Directorio: {Directorio.query.count()} total ({created_d} nuevos, {updated_d} actualizados)")
+
+            # ── Análisis de plantas (energía garantizada mensual) ──
+            try:
+                import json as _json
+                from app.models.analisis import AnalisisPlanta
+                from app.seeds.analisis_full import FULL_ANALISIS
+                created_a, updated_a = 0, 0
+                for p in FULL_ANALISIS:
+                    name = p.get("project")
+                    if not name:
+                        continue
+                    existing = AnalisisPlanta.query.filter_by(project=name).first()
+                    target = existing or AnalisisPlanta(project=name)
+                    if p.get("potencia_kwp") is not None: target.potencia_kwp = p["potencia_kwp"]
+                    if p.get("generado_kwh") is not None: target.generado_kwh = p["generado_kwh"]
+                    if p.get("garantizado"):
+                        target.garantizado = _json.dumps(p["garantizado"], ensure_ascii=False)
+                    if p.get("cumple_mayo"): target.cumple_mayo = p["cumple_mayo"]
+                    if p.get("proveedor"): target.proveedor = p["proveedor"]
+                    if p.get("seguimiento"): target.seguimiento = p["seguimiento"]
+                    if p.get("fallas"): target.fallas = p["fallas"]
+                    if p.get("responsable"): target.responsable = p["responsable"]
+                    if p.get("propuesta"): target.propuesta = p["propuesta"]
+                    if p.get("marca_inversor"): target.marca_inversor = p["marca_inversor"]
+                    if p.get("num_inversores") is not None: target.num_inversores = int(p["num_inversores"])
+                    if existing:
+                        updated_a += 1
+                    else:
+                        db.session.add(target)
+                        created_a += 1
+                db.session.commit()
+                click.echo(f"✅ Análisis de plantas: {AnalisisPlanta.query.count()} total ({created_a} nuevas, {updated_a} actualizadas)")
+            except Exception as e:
+                click.echo(f"⚠️  Análisis no cargado: {e}")
 
             click.echo("\n🎉 Seeding completo.")
 

@@ -19,6 +19,7 @@ const TITLES = {
   '/viaticos':      { title: 'Viáticos',      sub: 'Gastos de visita' },
   '/checklists':    { title: 'Checklists',    sub: 'Visitas de revisión' },
   '/lecciones':     { title: 'Lecciones aprendidas', sub: 'Base de conocimiento' },
+  '/analisis':      { title: 'Análisis de datos', sub: 'Plantas PV vigentes · cumplimiento mensual' },
 };
 
 export default function Topbar({ onMenu, actions }) {

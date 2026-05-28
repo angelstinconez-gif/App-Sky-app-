@@ -25,6 +25,7 @@ import Notificaciones from './pages/Notificaciones';
 import Viaticos from './pages/Viaticos';
 import Checklists from './pages/Checklists';
 import Lecciones from './pages/Lecciones';
+import Analisis from './pages/Analisis';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/viaticos" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Viaticos /></Protected>} />
         <Route path="/checklists" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><Checklists /></Protected>} />
         <Route path="/lecciones" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><Lecciones /></Protected>} />
+        <Route path="/analisis" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Analisis /></Protected>} />
         <Route path="/mantenimiento" element={<Protected roles={['admin', 'mantenimiento', 'tecnico']}><Mantenimiento /></Protected>} />
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
