@@ -8,8 +8,32 @@ import { fmtDate, downloadXLSX } from '../utils/format';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 
-const TIPOS = ['Preventivo', 'Correctivo', 'Limpieza', 'Inspección', 'Otro'];
+const TIPOS = [
+  'Mtto Preventivo 1/2 FV', 'Mtto Preventivo 2/2 FV',
+  'Mtto Preventivo 1/3 FV', 'Mtto Preventivo 2/3 FV', 'Mtto Preventivo 3/3 FV',
+  'Mtto Preventivo 1/4 FV', 'Mtto Preventivo 2/4 FV', 'Mtto Preventivo 3/4 FV', 'Mtto Preventivo 4/4 FV',
+  'Mtto Eléctrico 1/2', 'Mtto Eléctrico 2/2',
+  'Mtto Preventivo 1/2 BESS', 'Mtto Preventivo 2/2 BESS',
+  'Mantenimiento Correctivo',
+  'Visita Técnica',
+  'Mtto Preventivo x visita',
+];
 const ESTADOS = ['Programado', 'En curso', 'Completado', 'Cancelado'];
+
+// Helpers de días entre fechas
+function daysBetween(d1, d2) {
+  if (!d1 || !d2) return null;
+  const a = new Date(d1), b = new Date(d2);
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.floor((b - a) / 86400000);
+}
+function daysFromToday(d) {
+  if (!d) return null;
+  const t = new Date(); t.setHours(0,0,0,0);
+  const target = new Date(d);
+  if (isNaN(target)) return null;
+  return Math.floor((target - t) / 86400000);
+}
 
 const empty = {
   project: '', code: '', tipo: 'Preventivo', estado: 'Programado',
@@ -115,6 +139,54 @@ export default function Mantenimiento() {
       { key: 'estado', label: 'Estado' },
       { key: 'fechaProgramada', label: 'Programado', render: (r) => fmtDate(r.fechaProgramada) },
       { key: 'fechaEjecutada', label: 'Ejecutado', render: (r) => fmtDate(r.fechaEjecutada) },
+      {
+        key: '_tiempo', label: 'Tiempo',
+        render: (r) => {
+          // Si está ejecutado, días entre programado y ejecutado
+          if (r.fechaEjecutada) {
+            const dias = daysBetween(r.fechaProgramada, r.fechaEjecutada);
+            if (dias === null) return '—';
+            const tarde = dias > 0;
+            return (
+              <span style={{
+                background: tarde ? '#fef3c7' : '#dcfce7',
+                color: tarde ? '#92400e' : '#166534',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                {dias === 0 ? '✓ A tiempo' :
+                 dias > 0 ? `+${dias}d tarde` :
+                 `${-dias}d antes`}
+              </span>
+            );
+          }
+          // No ejecutado: días faltantes / pasados desde lo programado
+          if (r.estado === 'Cancelado') return <span style={{ color: 'var(--gray-400)' }}>Cancelado</span>;
+          const dias = daysFromToday(r.fechaProgramada);
+          if (dias === null) return '—';
+          if (dias > 0) {
+            const cerca = dias <= 7;
+            return (
+              <span style={{
+                background: cerca ? '#fef3c7' : '#dbeafe',
+                color: cerca ? '#92400e' : '#1e40af',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                {cerca && '⏰ '}En {dias}d
+              </span>
+            );
+          }
+          if (dias === 0) return <span style={{ background:'#fed7aa', color:'#9a3412', padding:'3px 8px', borderRadius:10, fontSize:11, fontWeight:700 }}>📅 Hoy</span>;
+          // dias < 0 → vencido
+          return (
+            <span style={{
+              background: '#fee2e2', color: '#991b1b',
+              padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+            }}>
+              🔴 Vencido {-dias}d
+            </span>
+          );
+        },
+      },
       { key: 'cuadrilla', label: 'Cuadrilla' },
       {
         key: 'tecnicosData', label: 'Técnicos',

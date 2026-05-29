@@ -20,6 +20,7 @@ const TITLES = {
   '/checklists':    { title: 'Checklists',    sub: 'Visitas de revisión' },
   '/lecciones':     { title: 'Lecciones aprendidas', sub: 'Base de conocimiento' },
   '/analisis':      { title: 'Análisis de datos', sub: 'Plantas PV vigentes · cumplimiento mensual' },
+  '/tickets-por-proyecto': { title: 'Tickets por proyecto', sub: 'Resumen abiertos / cerrados / vencidos' },
 };
 
 export default function Topbar({ onMenu, actions }) {

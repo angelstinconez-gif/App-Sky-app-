@@ -73,6 +73,20 @@ def register_seed_cli(app):
                 "ALTER TABLE mantenimientos ADD COLUMN tecnicos_ids TEXT"
             ))
 
+            # Viáticos: columnas nuevas
+            for col_name, ddl in [
+                ("responsables_extra", "ALTER TABLE viaticos ADD COLUMN responsables_extra TEXT"),
+                ("tipo_persona",       "ALTER TABLE viaticos ADD COLUMN tipo_persona VARCHAR(20)"),
+                ("comidas",            "ALTER TABLE viaticos ADD COLUMN comidas INTEGER DEFAULT 0"),
+                ("noches",             "ALTER TABLE viaticos ADD COLUMN noches INTEGER DEFAULT 0"),
+                ("tipo_vehiculo",      "ALTER TABLE viaticos ADD COLUMN tipo_vehiculo VARCHAR(30)"),
+                ("cantidad_vehiculos", "ALTER TABLE viaticos ADD COLUMN cantidad_vehiculos INTEGER DEFAULT 0"),
+                ("tag",                "ALTER TABLE viaticos ADD COLUMN tag VARCHAR(40)"),
+                ("placa",              "ALTER TABLE viaticos ADD COLUMN placa VARCHAR(40)"),
+                ("monto_calculado",    "ALTER TABLE viaticos ADD COLUMN monto_calculado FLOAT DEFAULT 0"),
+            ]:
+                _try(f"viaticos.{col_name}", lambda c=col_name, d=ddl: _add_col("viaticos", c, d))
+
             # viaticos.ticket_id: convertir a VARCHAR(20) si es INTEGER
             def _convert_viatico_ticket():
                 if not insp.has_table("viaticos"):
@@ -122,6 +136,8 @@ def register_seed_cli(app):
             _try("crear tecnicos", lambda: _create_if_missing(_Tecnico))
             _try("crear avisos", lambda: _create_if_missing(_Aviso))
             _try("crear viaticos", lambda: _create_if_missing(_Viatico))
+            from app.models.viatico import PresupuestoViaticos as _Pres
+            _try("crear presupuesto_viaticos", lambda: _create_if_missing(_Pres))
             _try("crear checklists", lambda: _create_if_missing(_Checklist))
             _try("crear lecciones", lambda: _create_if_missing(_Leccion))
             _try("crear analisis_plantas", lambda: _create_if_missing(_Analisis))

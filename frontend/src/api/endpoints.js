@@ -44,7 +44,13 @@ export const avisosApi = {
   ...crud('/avisos'),
   listAll: () => api.get('/avisos', { params: { all: 1 } }).then((r) => r.data),
 };
-export const viaticosApi = crud('/viaticos');
+export const viaticosApi = {
+  ...crud('/viaticos'),
+  tarifas: () => api.get('/viaticos/tarifas').then((r) => r.data),
+  presupuesto: (year) => api.get('/viaticos/presupuesto', { params: year ? { year } : {} }).then((r) => r.data),
+  setPresupuesto: (data) => api.post('/viaticos/presupuesto', data).then((r) => r.data),
+  delPresupuesto: (id) => api.delete(`/viaticos/presupuesto/${id}`).then((r) => r.data),
+};
 export const checklistsApi = crud('/checklists');
 export const leccionesApi = crud('/lecciones');
 export const analisisApi = {

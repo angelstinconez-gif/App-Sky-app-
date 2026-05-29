@@ -42,6 +42,9 @@ export default function Calendario() {
     tipo: 'Preventivo', cuadrilla: '', notes: '',
   });
 
+  // Modal: detalle de evento seleccionado
+  const [detailItem, setDetailItem] = useState(null);
+
   const toggleType = (id) =>
     setActiveTypes((arr) => arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
@@ -268,12 +271,16 @@ export default function Calendario() {
       </div>
 
       {loading ? <div className="empty"><span className="spinner" /></div> : (
-        view === 'month' ? <MonthView cursor={cursor} items={allItems} canSchedule={canSchedule} onDayClick={(iso) => openSchedule(iso, 'ticket')} /> :
+        view === 'month' ? <MonthView cursor={cursor} items={allItems} canSchedule={canSchedule}
+          onDayClick={(iso) => openSchedule(iso, 'ticket')}
+          onItemClick={(it) => setDetailItem(it)} /> :
         view === 'year' ? <YearView cursor={cursor} items={allItems} onPick={onMonthSelect} /> :
-        <DayView cursor={cursor} items={allItems} canSchedule={canSchedule} onSchedule={(kind) => openSchedule(
-          `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
-          kind
-        )} />
+        <DayView cursor={cursor} items={allItems} canSchedule={canSchedule}
+          onItemClick={(it) => setDetailItem(it)}
+          onSchedule={(kind) => openSchedule(
+            `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
+            kind
+          )} />
       )}
 
       <div style={{ marginTop: 20 }}>
@@ -297,6 +304,59 @@ export default function Calendario() {
           </table>
         </div>
       </div>
+
+      {/* ── Modal: Detalle del evento seleccionado ── */}
+      <Modal
+        open={!!detailItem} onClose={() => setDetailItem(null)}
+        title={detailItem ? `${detailItem.type === 'mantenimiento' ? '🔧' : detailItem.type === 'ticket' ? '🎫' : detailItem.type === 'incidencia' ? '⚠️' : '📅'} ${detailItem.title || ''}` : ''}
+        wide
+        footer={
+          <>
+            {detailItem && detailItem.type === 'ticket' && (
+              <button className="btn" onClick={() => { setDetailItem(null); window.open('/tickets', '_blank'); }}>Ir a Tickets</button>
+            )}
+            {detailItem && detailItem.type === 'mantenimiento' && (
+              <button className="btn" onClick={() => { setDetailItem(null); window.open('/mantenimiento', '_blank'); }}>Ir a Mantenimiento</button>
+            )}
+            {detailItem && detailItem.type === 'incidencia' && (
+              <button className="btn" onClick={() => { setDetailItem(null); window.open('/incidencias', '_blank'); }}>Ir a Incidencias</button>
+            )}
+            <button className="btn btn-primary" onClick={() => setDetailItem(null)}>Cerrar</button>
+          </>
+        }
+      >
+        {detailItem && (
+          <div style={{
+            background: 'var(--gray-50)', padding: 14, borderRadius: 8, fontSize: 13, lineHeight: 1.7,
+            borderLeft: `4px solid ${detailItem.color}`,
+          }}>
+            <div style={{ marginBottom: 10 }}>
+              <span style={{
+                background: detailItem.color, color: 'white',
+                padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+              }}>{detailItem.type}</span>
+              <span style={{ marginLeft: 10, color: 'var(--gray-500)', fontSize: 12 }}>
+                📅 {fmtDate(detailItem.date)}
+              </span>
+            </div>
+            <h3 style={{ marginBottom: 12, color: 'var(--gray-800)' }}>{detailItem.title}</h3>
+            <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--gray-700)' }}>
+              {detailItem.tooltip}
+            </div>
+            {detailItem.raw && (
+              <details style={{ marginTop: 14, fontSize: 11, color: 'var(--gray-500)' }}>
+                <summary style={{ cursor: 'pointer' }}>Ver datos completos (JSON)</summary>
+                <pre style={{
+                  fontSize: 10, padding: 8, background: 'var(--gray-100)', borderRadius: 4,
+                  marginTop: 6, overflow: 'auto', maxHeight: 220,
+                }}>
+                  {JSON.stringify(detailItem.raw, null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ── Modal: Agendar ticket o mantenimiento ── */}
       <Modal
@@ -372,7 +432,7 @@ export default function Calendario() {
   );
 }
 
-function MonthView({ cursor, items, canSchedule, onDayClick }) {
+function MonthView({ cursor, items, canSchedule, onDayClick, onItemClick }) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
@@ -413,11 +473,11 @@ function MonthView({ cursor, items, canSchedule, onDayClick }) {
               <div
                 key={e.id}
                 title={e.tooltip || e.title}
-                onClick={(evt) => { evt.stopPropagation(); }}
+                onClick={(evt) => { evt.stopPropagation(); onItemClick && onItemClick(e); }}
                 style={{
                   background: e.color, color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 4,
                   marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  cursor: 'help',
+                  cursor: 'pointer',
                 }}
               >
                 {e.title}
@@ -472,7 +532,7 @@ function MiniMonth({ year, month, items }) {
   );
 }
 
-function DayView({ cursor, items, canSchedule, onSchedule }) {
+function DayView({ cursor, items, canSchedule, onSchedule, onItemClick }) {
   const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
   const todays = items.filter((e) => e.date === iso);
   return (
@@ -493,10 +553,11 @@ function DayView({ cursor, items, canSchedule, onSchedule }) {
           {todays.map((e) => (
             <li key={e.id}
               title={e.tooltip || e.title}
+              onClick={() => onItemClick && onItemClick(e)}
               style={{
                 padding: 10, marginBottom: 6, borderRadius: 8,
                 borderLeft: `4px solid ${e.color}`, background: 'var(--gray-50, #f9fafb)',
-                cursor: 'help',
+                cursor: 'pointer',
               }}>
               <div>
                 <strong>{e.title}</strong>

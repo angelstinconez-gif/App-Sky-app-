@@ -32,6 +32,7 @@ const NAV = [
   { section: 'Análisis' },
   { to: '/calendario',     label: 'Calendario',   icon: '📅', roles: ALL },
   { to: '/analisis',       label: 'Análisis datos PV', icon: '☀', roles: ['admin', 'operator', 'mantenimiento'] },
+  { to: '/tickets-por-proyecto', label: 'Tickets por proyecto', icon: '📊', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/reportes',       label: 'Reportes',     icon: '📈', roles: ['admin', 'operator'] },
   { section: 'Sistema' },
   { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ['admin'] },
