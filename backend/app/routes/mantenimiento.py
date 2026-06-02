@@ -36,6 +36,11 @@ def _apply(m: Mantenimiento, data: dict):
     m.tipo = parse_str(data.get("tipo"))
     m.fecha_programada = parse_date(data.get("fechaProgramada"))
     m.fecha_ejecutada = parse_date(data.get("fechaEjecutada"))
+    m.fecha_inicio_ejecucion = parse_date(data.get("fechaInicioEjecucion"))
+    m.fecha_fin_ejecucion = parse_date(data.get("fechaFinEjecucion"))
+    # Si llega fin de ejecución y no fecha_ejecutada, copia para compat
+    if m.fecha_fin_ejecucion and not m.fecha_ejecutada:
+        m.fecha_ejecutada = m.fecha_fin_ejecucion
     m.estado = parse_str(data.get("estado")) or m.estado
 
     # Cuadrilla: aceptar tanto id como nombre

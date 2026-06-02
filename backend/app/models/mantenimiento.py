@@ -13,7 +13,9 @@ class Mantenimiento(db.Model):
     code = db.Column(db.String(80))
     tipo = db.Column(db.String(60))                # Preventivo, Correctivo, Limpieza
     fecha_programada = db.Column(db.Date, index=True)
-    fecha_ejecutada = db.Column(db.Date)
+    fecha_ejecutada = db.Column(db.Date)           # (compat) — equivale a fecha_fin_ejecucion
+    fecha_inicio_ejecucion = db.Column(db.Date)    # cuando arrancó la ejecución real
+    fecha_fin_ejecucion = db.Column(db.Date)       # cuando terminó la ejecución
     estado = db.Column(db.String(40), default="Programado", index=True)  # Programado, En curso, Completado
     cuadrilla = db.Column(db.String(80))           # nombre de la cuadrilla (compat)
     cuadrilla_id = db.Column(db.Integer, index=True)    # id de la cuadrilla (nueva)
@@ -38,6 +40,25 @@ class Mantenimiento(db.Model):
             pass
         return []
 
+    def dias_en_ejecucion(self):
+        """Días que lleva en ejecución.
+
+        - Si tiene inicio Y fin: días de duración total (fin - inicio).
+        - Si tiene solo inicio: días que LLEVA en ejecución (hoy - inicio).
+        - Si no tiene inicio: None.
+        """
+        ini = self.fecha_inicio_ejecucion
+        if not ini:
+            return None
+        fin = self.fecha_fin_ejecucion or self.fecha_ejecutada
+        if fin:
+            return max(0, (fin - ini).days)
+        # En curso → días desde inicio hasta hoy
+        return max(0, (datetime.utcnow().date() - ini).days)
+
+    def en_curso(self):
+        return bool(self.fecha_inicio_ejecucion and not (self.fecha_fin_ejecucion or self.fecha_ejecutada))
+
     def to_dict(self):
         ids = self._tecnicos_parsed()
         nombres = []
@@ -55,6 +76,10 @@ class Mantenimiento(db.Model):
             "tipo": self.tipo,
             "fechaProgramada": self.fecha_programada.isoformat() if self.fecha_programada else None,
             "fechaEjecutada": self.fecha_ejecutada.isoformat() if self.fecha_ejecutada else None,
+            "fechaInicioEjecucion": self.fecha_inicio_ejecucion.isoformat() if self.fecha_inicio_ejecucion else None,
+            "fechaFinEjecucion": self.fecha_fin_ejecucion.isoformat() if self.fecha_fin_ejecucion else None,
+            "diasEnEjecucion": self.dias_en_ejecucion(),
+            "enCurso": self.en_curso(),
             "estado": self.estado,
             "cuadrilla": self.cuadrilla,
             "cuadrillaId": self.cuadrilla_id,

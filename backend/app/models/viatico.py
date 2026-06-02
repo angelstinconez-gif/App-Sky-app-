@@ -59,16 +59,26 @@ class Viatico(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def num_personas(self):
+        """Cuenta personas involucradas: responsable principal + extras (mín 1)."""
+        n = 1 if self.responsable else 0
+        n += len(self._parse_responsables())
+        return max(n, 1)  # mínimo una persona
+
     def calc_monto(self):
         tipo = self.tipo_persona or "tecnico"
         if tipo not in TARIFAS:
             tipo = "tecnico"
         t = TARIFAS[tipo]
+        personas = self.num_personas()
         total = 0.0
+        # Comidas: cada persona puede consumir hasta `comidas` comidas
         if self.comidas:
-            total += min(int(self.comidas), 3) * t["comida"]
+            total += min(int(self.comidas), 3) * t["comida"] * personas
+        # Noches: cada persona necesita hospedaje
         if self.noches:
-            total += int(self.noches) * t["noche"]
+            total += int(self.noches) * t["noche"] * personas
+        # Vehículos: no se multiplica por personas (es por vehículo)
         if self.tipo_vehiculo and self.cantidad_vehiculos:
             rate = t.get(self.tipo_vehiculo, 0)
             total += int(self.cantidad_vehiculos) * rate
@@ -82,7 +92,8 @@ class Viatico(db.Model):
             return []
 
     def to_dict(self):
-        self.monto_calculado = self.calc_monto()
+        # Calcular sin mutar el objeto durante la serialización
+        calc = self.calc_monto()
         return {
             "id": self.id,
             "ticketId": self.ticket_id,
@@ -90,6 +101,7 @@ class Viatico(db.Model):
             "code": self.code,
             "responsable": self.responsable,
             "responsablesExtra": self._parse_responsables(),
+            "numPersonas": self.num_personas(),
             "tipoPersona": self.tipo_persona,
             "comidas": self.comidas or 0,
             "noches": self.noches or 0,
@@ -98,7 +110,7 @@ class Viatico(db.Model):
             "tag": self.tag,
             "placa": self.placa,
             "monto": self.monto or 0,
-            "montoCalculado": self.monto_calculado,
+            "montoCalculado": calc,
             "moneda": self.moneda,
             "diasSitio": self.dias_sitio or 0,
             "fechaSalida": self.fecha_salida.isoformat() if self.fecha_salida else None,

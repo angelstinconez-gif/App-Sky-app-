@@ -56,6 +56,14 @@ def register_seed_cli(app):
                 "incidencias", "equipment",
                 "ALTER TABLE incidencias ADD COLUMN equipment VARCHAR(120)"
             ))
+            _try("errores_catalogo.es_general", lambda: _add_col(
+                "errores_catalogo", "es_general",
+                "ALTER TABLE errores_catalogo ADD COLUMN es_general BOOLEAN DEFAULT FALSE"
+            ))
+            _try("errores_catalogo.manual", lambda: _add_col(
+                "errores_catalogo", "manual",
+                "ALTER TABLE errores_catalogo ADD COLUMN manual BOOLEAN DEFAULT FALSE"
+            ))
             _try("notification_log.read_at", lambda: _add_col(
                 "notification_log", "read_at",
                 "ALTER TABLE notification_log ADD COLUMN read_at TIMESTAMP"
@@ -71,6 +79,14 @@ def register_seed_cli(app):
             _try("mantenimientos.tecnicos_ids", lambda: _add_col(
                 "mantenimientos", "tecnicos_ids",
                 "ALTER TABLE mantenimientos ADD COLUMN tecnicos_ids TEXT"
+            ))
+            _try("mantenimientos.fecha_inicio_ejecucion", lambda: _add_col(
+                "mantenimientos", "fecha_inicio_ejecucion",
+                "ALTER TABLE mantenimientos ADD COLUMN fecha_inicio_ejecucion DATE"
+            ))
+            _try("mantenimientos.fecha_fin_ejecucion", lambda: _add_col(
+                "mantenimientos", "fecha_fin_ejecucion",
+                "ALTER TABLE mantenimientos ADD COLUMN fecha_fin_ejecucion DATE"
             ))
 
             # Viáticos: columnas nuevas
@@ -117,9 +133,16 @@ def register_seed_cli(app):
             _try("directorio recreate", lambda: _maybe_recreate(
                 Directorio, ["client_company", "maint_contact_2"]
             ))
-            _try("errores_catalogo recreate", lambda: _maybe_recreate(
-                ErrorCatalog, ["equipment", "source_url"]
-            ))
+            # NUNCA recrear errores_catalogo (borraría datos del usuario).
+            # En su lugar, añadir columnas faltantes vía ALTER.
+            for col, ddl in [
+                ("equipment",      "ALTER TABLE errores_catalogo ADD COLUMN equipment VARCHAR(120)"),
+                ("classification", "ALTER TABLE errores_catalogo ADD COLUMN classification VARCHAR(60)"),
+                ("tipo",           "ALTER TABLE errores_catalogo ADD COLUMN tipo VARCHAR(60)"),
+                ("impact",         "ALTER TABLE errores_catalogo ADD COLUMN impact TEXT"),
+                ("source_url",     "ALTER TABLE errores_catalogo ADD COLUMN source_url VARCHAR(500)"),
+            ]:
+                _try(f"errores_catalogo.{col}", lambda c=col, d=ddl: _add_col("errores_catalogo", c, d))
 
             # ── Crear tablas nuevas ──
             def _create_if_missing(model):
@@ -180,24 +203,47 @@ def register_seed_cli(app):
             except ImportError:
                 FULL_ERRORES = []
 
-            if replace_errors and FULL_ERRORES:
-                ErrorCatalog.query.delete()
-                db.session.commit()
-
+            # Errores: UPSERT con protección de datos manuales del usuario.
+            # Regla: si ErrorCatalog.manual==True, el seed NUNCA lo toca.
+            #        Sólo se actualizan los códigos del Excel oficial.
+            created_e, updated_e, preservados = 0, 0, 0
             for e in FULL_ERRORES:
-                if ErrorCatalog.query.filter_by(brand=e["brand"], code=e["code"]).first():
-                    continue
-                db.session.add(ErrorCatalog(
-                    brand=e["brand"], code=e["code"],
-                    equipment=e.get("equipment"),
-                    classification=e.get("classification"),
-                    tipo=e.get("tipo"), problem=e.get("problem"),
-                    cause=e.get("cause"), solution=e.get("solution"),
-                    impact=e.get("impact"), source_url=e.get("source_url"),
-                    priority=e.get("priority"),
-                ))
+                existing = ErrorCatalog.query.filter_by(brand=e["brand"], code=e["code"]).first()
+                if existing:
+                    # Si el usuario lo creó/modificó a mano, NO TOCAR
+                    if existing.manual:
+                        preservados += 1
+                        continue
+                    # Sólo actualiza códigos NO manuales
+                    existing.equipment = e.get("equipment") or existing.equipment
+                    existing.classification = e.get("classification") or existing.classification
+                    existing.tipo = e.get("tipo") or existing.tipo
+                    existing.problem = e.get("problem") or existing.problem
+                    existing.cause = e.get("cause") or existing.cause
+                    existing.solution = e.get("solution") or existing.solution
+                    existing.impact = e.get("impact") or existing.impact
+                    existing.source_url = e.get("source_url") or existing.source_url
+                    existing.priority = e.get("priority") or existing.priority
+                    if "es_general" in e:
+                        existing.es_general = bool(e["es_general"])
+                    updated_e += 1
+                else:
+                    db.session.add(ErrorCatalog(
+                        brand=e["brand"], code=e["code"],
+                        equipment=e.get("equipment"),
+                        classification=e.get("classification"),
+                        tipo=e.get("tipo"), problem=e.get("problem"),
+                        cause=e.get("cause"), solution=e.get("solution"),
+                        impact=e.get("impact"), source_url=e.get("source_url"),
+                        priority=e.get("priority"),
+                        es_general=bool(e.get("es_general")),
+                        manual=False,  # del Excel oficial, no manual
+                    ))
+                    created_e += 1
             db.session.commit()
-            click.echo(f"✅ Errores: {ErrorCatalog.query.count()}")
+            total_e = ErrorCatalog.query.count()
+            manuales = ErrorCatalog.query.filter_by(manual=True).count()
+            click.echo(f"✅ Errores: {total_e} total ({created_e} nuevos del Excel, {updated_e} oficiales actualizados, {preservados} oficiales preservados por manual=True, {manuales} creados por usuario INTACTOS)")
 
             # Pólizas: combina catálogo completo (244 plantas del Excel) + demo
             FULL_POLIZAS = []

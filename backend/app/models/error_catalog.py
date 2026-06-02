@@ -22,6 +22,8 @@ class ErrorCatalog(db.Model):
     impact = db.Column(db.Text)
     source_url = db.Column(db.String(500))
     priority = db.Column(db.String(20))                              # Critico, Alta, Intermedia, Baja
+    es_general = db.Column(db.Boolean, default=False, index=True)    # True = aplica a todas las marcas
+    manual = db.Column(db.Boolean, default=False, index=True)        # True = creado por usuario (seed NO toca)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -44,4 +46,6 @@ class ErrorCatalog(db.Model):
             "impact": self.impact,
             "sourceUrl": self.source_url,
             "priority": self.priority,
+            "esGeneral": bool(self.es_general),
+            "manual": bool(self.manual),
         }

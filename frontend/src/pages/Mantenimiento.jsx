@@ -36,8 +36,10 @@ function daysFromToday(d) {
 }
 
 const empty = {
-  project: '', code: '', tipo: 'Preventivo', estado: 'Programado',
-  fechaProgramada: '', fechaEjecutada: '',
+  project: '', code: '', tipo: 'Mtto Preventivo 1/2 FV', estado: 'Programado',
+  fechaProgramada: '',
+  fechaInicioEjecucion: '', fechaFinEjecucion: '',
+  fechaEjecutada: '',
   cuadrilla: '', cuadrillaId: '', tecnicosIds: [], responsable: '',
   descripcion: '', resultados: '',
 };
@@ -137,10 +139,47 @@ export default function Mantenimiento() {
       { key: 'code', label: 'Código' },
       { key: 'tipo', label: 'Tipo' },
       { key: 'estado', label: 'Estado' },
-      { key: 'fechaProgramada', label: 'Programado', render: (r) => fmtDate(r.fechaProgramada) },
-      { key: 'fechaEjecutada', label: 'Ejecutado', render: (r) => fmtDate(r.fechaEjecutada) },
+      { key: 'fechaProgramada', label: '📅 Programado', render: (r) => fmtDate(r.fechaProgramada) },
       {
-        key: '_tiempo', label: 'Tiempo',
+        key: 'fechaInicioEjecucion', label: '▶ Inicio',
+        render: (r) => fmtDate(r.fechaInicioEjecucion),
+      },
+      {
+        key: 'fechaFinEjecucion', label: '✓ Fin',
+        render: (r) => fmtDate(r.fechaFinEjecucion || r.fechaEjecutada),
+      },
+      {
+        key: '_diasEjec', label: 'Días ejec.',
+        render: (r) => {
+          const ini = r.fechaInicioEjecucion;
+          const fin = r.fechaFinEjecucion || r.fechaEjecutada;
+          if (!ini) return <span style={{ color: 'var(--gray-400)' }}>—</span>;
+          if (ini && fin) {
+            const d = daysBetween(ini, fin);
+            return (
+              <span style={{
+                background: '#dcfce7', color: '#166534', padding: '3px 8px',
+                borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                ✓ {d}d
+              </span>
+            );
+          }
+          // En curso: días desde inicio hasta hoy
+          const d = daysFromToday(ini);
+          const lleva = d !== null ? Math.max(0, -d) : 0;
+          return (
+            <span style={{
+              background: '#fef3c7', color: '#92400e', padding: '3px 8px',
+              borderRadius: 10, fontSize: 11, fontWeight: 700,
+            }}>
+              ⏱ Lleva {lleva}d
+            </span>
+          );
+        },
+      },
+      {
+        key: '_tiempo', label: 'Estado tiempo',
         render: (r) => {
           // Si está ejecutado, días entre programado y ejecutado
           if (r.fechaEjecutada) {
@@ -296,12 +335,69 @@ export default function Mantenimiento() {
             </select>
           </FormRow>
 
-          <FormRow label="Fecha programada">
-            <input type="date" value={form.fechaProgramada?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, fechaProgramada: e.target.value })} />
+          <FormRow label="📅 Fecha programada">
+            <input type="date" value={form.fechaProgramada?.slice(0, 10) || ''}
+              onChange={(e) => setForm({ ...form, fechaProgramada: e.target.value })} />
           </FormRow>
-          <FormRow label="Fecha ejecutada">
-            <input type="date" value={form.fechaEjecutada?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, fechaEjecutada: e.target.value })} />
+          <FormRow label="▶ Inicio de ejecución">
+            <input type="date" value={form.fechaInicioEjecucion?.slice(0, 10) || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({
+                  ...f,
+                  fechaInicioEjecucion: val,
+                  // Si arranca y aún no se ha terminado → estado "En curso"
+                  estado: val && !f.fechaFinEjecucion ? 'En curso' : f.estado,
+                }));
+              }} />
           </FormRow>
+          <FormRow label="✓ Fin de ejecución">
+            <input type="date" value={form.fechaFinEjecucion?.slice(0, 10) || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({
+                  ...f,
+                  fechaFinEjecucion: val,
+                  fechaEjecutada: val,                  // compat
+                  estado: val ? 'Completado' : f.estado,
+                }));
+              }} />
+          </FormRow>
+
+          {/* Indicador en vivo de duración / días que lleva ejecutándose */}
+          {(form.fechaInicioEjecucion || form.fechaFinEjecucion) && (
+            <FormRow label="" full>
+              {(() => {
+                const ini = form.fechaInicioEjecucion;
+                const fin = form.fechaFinEjecucion || form.fechaEjecutada;
+                if (ini && fin) {
+                  const d = daysBetween(ini, fin);
+                  return (
+                    <div style={{
+                      background: '#dcfce7', color: '#166534', padding: 8, borderRadius: 6,
+                      fontSize: 12, fontWeight: 600,
+                    }}>
+                      ✓ Duración total de ejecución: <strong>{d}d</strong>
+                    </div>
+                  );
+                }
+                if (ini && !fin) {
+                  const d = daysFromToday(ini);
+                  const llevando = d !== null ? -d : 0; // d negativo si inicio antes de hoy
+                  return (
+                    <div style={{
+                      background: '#fef3c7', color: '#92400e', padding: 8, borderRadius: 6,
+                      fontSize: 12, fontWeight: 600,
+                    }}>
+                      ⏱ En ejecución — lleva <strong>{Math.max(0, llevando)}d</strong>
+                      {' '}desde {fmtDate(ini)}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </FormRow>
+          )}
 
           <FormRow label="Cuadrilla">
             <div style={{ display: 'flex', gap: 4 }}>

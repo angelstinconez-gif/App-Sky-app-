@@ -83,10 +83,34 @@ export default function Incidencias() {
   }, []);
 
   // ── Filtrado de códigos de error por plataforma seleccionada ──
+  // Códigos disponibles: específicos de la plataforma + códigos GENERALES (siempre)
   const codesForPlatform = useMemo(() => {
-    if (!form.platform) return [];
-    return errors.filter((e) => e.brand?.toUpperCase() === form.platform.toUpperCase());
+    const generales = errors.filter((e) => e.esGeneral || e.brand?.toUpperCase() === 'GENERAL');
+    if (!form.platform) {
+      // Sin plataforma seleccionada: muestra solo los generales
+      return generales;
+    }
+    const especificos = errors.filter((e) =>
+      !e.esGeneral &&
+      e.brand?.toUpperCase() !== 'GENERAL' &&
+      e.brand?.toUpperCase() === form.platform.toUpperCase()
+    );
+    // Específicos primero, luego generales separados por un divisor visual
+    return [...especificos, ...generales];
   }, [errors, form.platform]);
+
+  // Para el dropdown: separar visualmente con optgroup
+  const especificosCount = useMemo(() => {
+    if (!form.platform) return 0;
+    return errors.filter((e) =>
+      !e.esGeneral && e.brand?.toUpperCase() !== 'GENERAL'
+      && e.brand?.toUpperCase() === form.platform.toUpperCase()
+    ).length;
+  }, [errors, form.platform]);
+
+  const generalesCount = useMemo(() =>
+    errors.filter((e) => e.esGeneral || e.brand?.toUpperCase() === 'GENERAL').length,
+  [errors]);
 
   const onNew = () => { setForm(empty); setEditingId(null); setOpenModal(true); };
   const onEdit = (row) => {
@@ -97,11 +121,17 @@ export default function Incidencias() {
 
   // ── Cuando cambia el código de error (o se selecciona) → auto-llenar ──
   const onErrCodeChange = (code) => {
-    const match = errors.find(
-      (e) =>
-        e.brand?.toUpperCase() === form.platform?.toUpperCase() &&
-        String(e.code) === String(code)
+    // Buscar primero por (plataforma, código) específico; si no, buscar GENERAL
+    let match = errors.find((e) =>
+      e.brand?.toUpperCase() === form.platform?.toUpperCase() &&
+      String(e.code) === String(code)
     );
+    if (!match) {
+      match = errors.find((e) =>
+        (e.esGeneral || e.brand?.toUpperCase() === 'GENERAL') &&
+        String(e.code) === String(code)
+      );
+    }
     setForm((f) => ({
       ...f,
       errCode: code,
@@ -720,14 +750,25 @@ export default function Incidencias() {
           </FormRow>
 
           {/* ── CÓDIGO DE ERROR (dropdown filtrado por plataforma) ── */}
-          <FormRow label={`Código de Error ${form.platform ? `(${codesForPlatform.length} disponibles)` : '— elige plataforma'}`}>
-            <select value={form.errCode} onChange={(e) => onErrCodeChange(e.target.value)} disabled={!form.platform}>
+          <FormRow label={`Código de Error ${form.platform ? `(${especificosCount} ${form.platform} + ${generalesCount} generales)` : `(${generalesCount} códigos generales)`}`}>
+            <select value={form.errCode} onChange={(e) => onErrCodeChange(e.target.value)}>
               <option value="">—</option>
-              {codesForPlatform.map((e) => (
-                <option key={e.id} value={e.code}>
-                  {e.code} — {e.problem || e.classification}
-                </option>
-              ))}
+              {form.platform && especificosCount > 0 && (
+                <optgroup label={`⚙️ ${form.platform} (${especificosCount})`}>
+                  {codesForPlatform.filter((e) => !e.esGeneral && e.brand?.toUpperCase() !== 'GENERAL').map((e) => (
+                    <option key={e.id} value={e.code}>
+                      {e.code} — {e.problem || e.classification}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label={`🌐 Generales (aplican a todas las marcas) — ${generalesCount}`}>
+                {codesForPlatform.filter((e) => e.esGeneral || e.brand?.toUpperCase() === 'GENERAL').map((e) => (
+                  <option key={`g-${e.id}`} value={e.code}>
+                    {e.code} — {e.problem || e.classification}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </FormRow>
           <FormRow label="Prioridad">

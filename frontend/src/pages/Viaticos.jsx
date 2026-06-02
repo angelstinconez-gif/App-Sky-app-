@@ -130,18 +130,26 @@ export default function Viaticos() {
     });
   };
 
+  // Personas involucradas (responsable + extras, mín 1)
+  const numPersonas = useMemo(() => {
+    const extras = (form.responsablesExtra || []).length;
+    const principal = form.responsable ? 1 : 0;
+    return Math.max(extras + principal, 1);
+  }, [form.responsable, form.responsablesExtra]);
+
   // Cálculo automático del monto en tiempo real
+  // Comidas y noches se multiplican por personas; vehículos por cantidad de vehículos.
   const montoCalc = useMemo(() => {
     if (!tarifas) return 0;
     const t = tarifas[form.tipoPersona] || tarifas.tecnico || {};
     let total = 0;
-    total += Math.min(Number(form.comidas) || 0, 3) * (t.comida || 0);
-    total += (Number(form.noches) || 0) * (t.noche || 0);
+    total += Math.min(Number(form.comidas) || 0, 3) * (t.comida || 0) * numPersonas;
+    total += (Number(form.noches) || 0) * (t.noche || 0) * numPersonas;
     if (form.tipoVehiculo && form.cantidadVehiculos) {
       total += (Number(form.cantidadVehiculos) || 0) * (t[form.tipoVehiculo] || 0);
     }
     return Math.round(total * 100) / 100;
-  }, [form, tarifas]);
+  }, [form, tarifas, numPersonas]);
 
   const toggleResponsable = (name) => {
     setForm((f) => {
@@ -451,16 +459,37 @@ export default function Viaticos() {
           </Row>
 
           {/* Monto */}
-          <Row label="Monto calculado">
-            <input value={money(montoCalc, form.moneda)} readOnly className="readonly-auto"
-              style={{ fontWeight: 700, color: '#0EA5E9' }} />
+          <Row label={`Monto calculado (${numPersonas} persona${numPersonas === 1 ? '' : 's'})`} full>
+            <div style={{
+              background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16, color: '#0EA5E9' }}>
+                <span>Total</span>
+                <span>{money(montoCalc, form.moneda)}</span>
+              </div>
+              {tarifas && (() => {
+                const t = tarifas[form.tipoPersona] || tarifas.tecnico || {};
+                const parts = [];
+                if (form.comidas > 0) parts.push(`🍽 ${form.comidas} comida${form.comidas > 1 ? 's' : ''} × ${numPersonas} pers × ${money(t.comida)} = ${money(form.comidas * t.comida * numPersonas)}`);
+                if (form.noches > 0) parts.push(`🌙 ${form.noches} noche${form.noches > 1 ? 's' : ''} × ${numPersonas} pers × ${money(t.noche)} = ${money(form.noches * t.noche * numPersonas)}`);
+                if (form.tipoVehiculo && form.cantidadVehiculos > 0) {
+                  const rate = t[form.tipoVehiculo] || 0;
+                  parts.push(`🚗 ${form.cantidadVehiculos} vehículo${form.cantidadVehiculos > 1 ? 's' : ''} × ${money(rate)} = ${money(form.cantidadVehiculos * rate)}`);
+                }
+                return parts.length > 0 ? (
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--gray-600)' }}>
+                    {parts.map((p, i) => <div key={i}>· {p}</div>)}
+                  </div>
+                ) : null;
+              })()}
+            </div>
           </Row>
-          <Row label="Monto manual (opcional)">
+          <Row label="Monto manual (override opcional)">
             <input type="number" step="0.01" value={form.monto}
               onChange={(e) => setForm({ ...form, monto: e.target.value })}
-              placeholder={`Default: ${montoCalc}`} />
+              placeholder={`Default calculado: ${montoCalc}`} />
           </Row>
-
           <Row label="Estado">
             <select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })}>
               {ESTADOS.map((s) => <option key={s}>{s}</option>)}

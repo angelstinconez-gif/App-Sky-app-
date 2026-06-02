@@ -29,6 +29,8 @@ export const ticketsApi = {
 export const erroresApi = {
   ...crud('/errores'),
   lookup: (brand, code) => api.get('/errores/lookup', { params: { brand, code } }).then((r) => r.data),
+  diagnostico: () => api.get('/errores/diagnostico').then((r) => r.data),
+  recargarCatalogo: () => api.post('/errores/recargar-catalogo').then((r) => r.data),
 };
 
 export const garantiasApi = crud('/garantias');

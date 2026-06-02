@@ -29,55 +29,91 @@ def _num(v):
         return None
 
 
+def _es_planta_pv(p):
+    """Determina si una póliza es de tipo PV (incluye COMPLETO, GENERACIÓN, vacío)."""
+    tipo = (p.poliza or "").upper()
+    if "BESS" in tipo:
+        # Si es PURAMENTE BESS, no es PV
+        return "PV" in tipo or "FV" in tipo or "COMPLETO" in tipo
+    if "PV" in tipo or "FV" in tipo:
+        return True
+    # Si tipo está vacío o es COMPLETO/GENERACIÓN, asumir PV
+    if tipo in ("", "COMPLETO", "GENERACIÓN", "GENERACION", "HÍBRIDO", "HIBRIDO"):
+        return True
+    # Si el código contiene -FV- es PV
+    if p.code and "-FV" in (p.code or "").upper():
+        return True
+    return False
+
+
 @bp.route("", methods=["GET"])
 @jwt_required()
 def list_analisis():
-    """Lista plantas PV vigentes con sus datos de garantía mensual.
+    """Devuelve TODAS las plantas PV vigentes (las que están en póliza),
+    autocreando registros AnalisisPlanta vacíos para las nuevas.
 
-    Filtra: solo proyectos que existen como Poliza con
-      - poliza.poliza contiene "PV" (o vacío = asumimos PV)
-      - poliza.pol_end >= hoy (vigente)
+    Esto garantiza que si añades una nueva póliza PV, aparezca inmediatamente
+    aquí para que puedas capturar su generación mensual.
     """
     args = request.args
     today = datetime.utcnow().date()
     incluir_vencidas = args.get("vencidas") in ("1", "true", "yes")
 
-    # Pólizas PV vigentes
-    pq = Poliza.query
-    polizas = pq.all()
-    pv_vigentes = {}
+    # 1. Pólizas PV (vigentes o todas si vencidas=1)
+    polizas = Poliza.query.all()
+    pv_polizas = []
     for p in polizas:
-        tipo = (p.poliza or "").upper()
-        es_pv = "PV" in tipo or tipo in ("", "COMPLETO", "GENERACIÓN", "GENERACION")
-        es_bess = "BESS" in tipo
-        if es_bess and not es_pv:
+        if not _es_planta_pv(p):
             continue
         vigente = (p.pol_end is None) or (p.pol_end >= today)
         if not vigente and not incluir_vencidas:
             continue
-        key = (p.project or "").strip().lower()
-        if key:
-            pv_vigentes[key] = p
+        pv_polizas.append(p)
 
-    # Análisis registrados
-    analisis_all = AnalisisPlanta.query.all()
+    # 2. Indexar análisis existentes por project (lowercase)
+    analisis_idx = {}
+    for a in AnalisisPlanta.query.all():
+        if a.project:
+            analisis_idx[a.project.strip().lower()] = a
+
+    # 3. Para cada póliza PV, devolver el análisis (creando vacío si no existe)
     out = []
-    for a in analisis_all:
-        key = (a.project or "").strip().lower()
-        if key not in pv_vigentes and not args.get("all"):
-            continue
+    nuevos_a_crear = []
+    for pol in pv_polizas:
+        key = (pol.project or "").strip().lower()
+        a = analisis_idx.get(key)
+        if not a:
+            # Crear registro nuevo vacío para que pueda capturarse
+            a = AnalisisPlanta(project=pol.project)
+            nuevos_a_crear.append(a)
+
         d = a.to_dict()
-        # enriquecer con datos de póliza
-        pol = pv_vigentes.get(key)
-        if pol:
-            d["polizaTipo"] = pol.poliza
-            d["polizaFin"] = pol.pol_end.isoformat() if pol.pol_end else None
-            d["zona"] = pol.zona
-            d["plataforma"] = pol.platform
-            d["codigo"] = pol.code
+        # Enriquecer con datos de póliza
+        d["polizaTipo"] = pol.poliza
+        d["polizaFin"] = pol.pol_end.isoformat() if pol.pol_end else None
+        d["zona"] = pol.zona
+        d["plataforma"] = pol.platform
+        d["codigo"] = pol.code
+        d["vigente"] = (pol.pol_end is None) or (pol.pol_end >= today)
         out.append(d)
 
-    # Mes solicitado: añadimos atajos sin pisar los dicts originales
+    # Commit de los nuevos análisis vacíos (para que tengan ID y se puedan editar)
+    if nuevos_a_crear:
+        for a in nuevos_a_crear:
+            db.session.add(a)
+        try:
+            db.session.commit()
+            # Re-leer para tener IDs reales
+            for d in out:
+                if not d.get("id"):
+                    a = AnalisisPlanta.query.filter_by(project=d["project"]).first()
+                    if a:
+                        d["id"] = a.id
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️  No se pudieron crear análisis nuevos: {e}")
+
+    # 4. Filtro de mes — atajos sin pisar los dicts originales
     mes_filter = args.get("mes")
     if mes_filter and mes_filter.lower() in MONTHS:
         m = mes_filter.lower()
@@ -86,6 +122,8 @@ def list_analisis():
             gen_dict = d.get("generadoMes") or {}
             d["generadoMesFiltro"] = gen_dict.get(m) if isinstance(gen_dict, dict) else None
 
+    # Ordenar por nombre de proyecto
+    out.sort(key=lambda x: (x.get("project") or "").lower())
     return jsonify(out)
 
 
