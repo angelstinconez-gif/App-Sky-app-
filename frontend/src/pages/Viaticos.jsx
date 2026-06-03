@@ -46,7 +46,7 @@ export default function Viaticos() {
   const toast = useToast();
   const canWrite = hasRole('admin', 'operator', 'mantenimiento');
   const canDelete = hasRole('admin');
-  const isAdmin = hasRole('admin');
+  const canEditBudget = hasRole('admin', 'mantenimiento');
 
   const [items, setItems] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -279,7 +279,7 @@ export default function Viaticos() {
           {items.length} reg · Gasto: <strong style={{ color: 'var(--sky)' }}>{money(totalMonto)}</strong>
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {isAdmin && (
+          {canEditBudget && (
             <button className="btn btn-sm" onClick={() => setPresOpen(true)}>
               💰 Presupuesto mensual
             </button>

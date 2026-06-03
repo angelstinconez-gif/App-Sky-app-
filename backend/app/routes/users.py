@@ -10,6 +10,9 @@ from app.utils.parse import parse_str
 
 bp = Blueprint("users", __name__)
 
+# Roles válidos del sistema
+VALID_ROLES = ("admin", "operator", "mantenimiento", "tecnico", "viewer")
+
 
 @bp.route("", methods=["GET"])
 @jwt_required()
@@ -29,8 +32,9 @@ def create_user():
     name = parse_str(data.get("name"))
     role = data.get("role") or "operator"
 
-    if role not in ("admin", "operator", "mantenimiento"):
-        return jsonify(error="invalid_role"), 400
+    if role not in VALID_ROLES:
+        return jsonify(error="invalid_role",
+                       message=f"Rol no válido. Permitidos: {', '.join(VALID_ROLES)}"), 400
     if not email or not password or not name:
         return jsonify(error="missing_fields", message="email, password y name son obligatorios"), 400
     if len(password) < 6:
@@ -70,7 +74,7 @@ def update_user(user_id):
             if User.query.filter_by(email=new_email).first():
                 return jsonify(error="duplicate_email"), 409
             user.email = new_email
-    if "role" in data and data["role"] in ("admin", "operator", "mantenimiento"):
+    if "role" in data and data["role"] in VALID_ROLES:
         user.role = data["role"]
     if "active" in data:
         user.active = bool(data["active"])

@@ -162,7 +162,7 @@ def presupuesto_list():
 
 @bp.route("/presupuesto", methods=["POST"])
 @jwt_required()
-@role_required("admin")
+@role_required("admin", "mantenimiento")
 def presupuesto_create():
     data = request.get_json(silent=True) or {}
     year = int(data.get("year") or datetime.utcnow().year)
@@ -188,7 +188,7 @@ def presupuesto_create():
 
 @bp.route("/presupuesto/<int:pid>", methods=["DELETE"])
 @jwt_required()
-@role_required("admin")
+@role_required("admin", "mantenimiento")
 def presupuesto_delete(pid):
     p = db.session.get(PresupuestoViaticos, pid)
     if not p:

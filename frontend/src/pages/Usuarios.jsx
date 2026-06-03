@@ -72,8 +72,46 @@ export default function Usuarios() {
   const columns = useMemo(() => [
     { key: 'name', label: 'Nombre' },
     { key: 'email', label: 'Email' },
-    { key: 'role', label: 'Rol' },
-    { key: 'active', label: 'Activo', render: (r) => (r.active ? '✓' : '—') },
+    {
+      key: 'role', label: 'Rol',
+      render: (r) => canWrite ? (
+        <select
+          value={r.role || ''}
+          onChange={async (e) => {
+            const newRole = e.target.value;
+            if (!confirm(`¿Cambiar el rol de ${r.name} a "${newRole}"?`)) return;
+            try {
+              // Sólo envía el rol — NO toca la contraseña
+              await usersApi.update(r.id, { role: newRole });
+              toast(`Rol cambiado a "${newRole}"`);
+              load();
+            } catch (err) {
+              toast(err?.response?.data?.message || 'Error', 'error');
+            }
+          }}
+          style={{
+            padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+            border: '1px solid var(--gray-200, #e5e7eb)', background: 'var(--card-bg, #fff)',
+          }}
+        >
+          {ROLES.map((rol) => <option key={rol} value={rol}>{rol}</option>)}
+        </select>
+      ) : (r.role || '—'),
+    },
+    {
+      key: 'active', label: 'Activo',
+      render: (r) => canWrite ? (
+        <input type="checkbox" checked={r.active !== false}
+          title="Activar/desactivar usuario"
+          onChange={async (e) => {
+            try {
+              await usersApi.update(r.id, { active: e.target.checked });
+              toast(e.target.checked ? '✓ Activado' : 'Desactivado');
+              load();
+            } catch (err) { toast('Error', 'error'); }
+          }} />
+      ) : (r.active ? '✓' : '—'),
+    },
     { key: 'last_login', label: 'Último ingreso', render: (r) => fmtDateTime(r.last_login) },
     {
       key: '_actions', label: 'Acciones', sortable: false,

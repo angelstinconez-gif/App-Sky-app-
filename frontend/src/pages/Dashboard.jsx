@@ -91,10 +91,16 @@ export default function Dashboard() {
       .sort((a, b) => pickDate(b, ['openDate', 'open_date']).localeCompare(pickDate(a, ['openDate', 'open_date']))),
   [tickets, range]);
 
-  const monthlyGarantias = useMemo(() =>
-    garantias.filter((g) => inThisMonth(pickDate(g, ['uploadDate', 'upload_date'])))
-      .sort((a, b) => pickDate(b, ['uploadDate', 'upload_date']).localeCompare(pickDate(a, ['uploadDate', 'upload_date']))),
-  [garantias, range]);
+  // Garantías: TODAS las abiertas (no solo del mes) — se quedan visibles hasta cerrarse
+  const monthlyGarantias = useMemo(() => {
+    const cerrados = new Set(['cerrada', 'rechazada', 'aprobada']);
+    return garantias
+      .filter((g) => {
+        const st = (g.status || '').toLowerCase();
+        return !cerrados.has(st);   // mostrar todas las que NO están cerradas
+      })
+      .sort((a, b) => pickDate(b, ['uploadDate', 'upload_date']).localeCompare(pickDate(a, ['uploadDate', 'upload_date'])));
+  }, [garantias]);
 
   const monthlyMants = useMemo(() =>
     mants.filter((m) => inThisMonth(pickDate(m, ['fechaProgramada', 'fecha_programada'])))
@@ -166,13 +172,13 @@ export default function Dashboard() {
               empty="Sin tickets este mes"
             />
             <MonthlyList
-              title="🛡️ Garantías"
+              title="🛡️ Garantías abiertas"
               icon="🛡️"
               items={monthlyGarantias}
               renderItem={(g) => `${g.brand || ''} ${g.model || ''}`}
-              renderSub={(g) => `${g.project || ''} · ${fmtDate(g.uploadDate)} · ${g.status || ''}`}
+              renderSub={(g) => `${g.project || ''} · ${fmtDate(g.uploadDate)} · ${g.status || ''}${g.days != null ? ` · ${g.days}d` : ''}`}
               onClick={(g) => setOpenItem({ type: 'garantia', data: g })}
-              empty="Sin garantías este mes"
+              empty="Sin garantías abiertas ✓"
             />
             <MonthlyList
               title="🔧 Mantenimientos"
