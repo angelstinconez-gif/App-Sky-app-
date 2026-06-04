@@ -53,7 +53,10 @@ export const viaticosApi = {
   setPresupuesto: (data) => api.post('/viaticos/presupuesto', data).then((r) => r.data),
   delPresupuesto: (id) => api.delete(`/viaticos/presupuesto/${id}`).then((r) => r.data),
 };
-export const checklistsApi = crud('/checklists');
+export const checklistsApi = {
+  ...crud('/checklists'),
+  download: (id) => `/api/checklists/${id}/download`,  // URL para descargar
+};
 export const leccionesApi = crud('/lecciones');
 export const analisisApi = {
   ...crud('/analisis'),

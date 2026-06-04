@@ -80,7 +80,7 @@ def _apply(p: Poliza, data: dict):
 
 @bp.route("", methods=["POST"])
 @jwt_required()
-@role_required("admin", "mantenimiento")
+@role_required("admin")
 def create_poliza():
     data = request.get_json(silent=True) or {}
     if not data.get("project"):
@@ -98,7 +98,7 @@ def create_poliza():
 
 @bp.route("/<int:item_id>", methods=["PUT"])
 @jwt_required()
-@role_required("admin", "mantenimiento")
+@role_required("admin")
 def update_poliza(item_id):
     p = db.session.get(Poliza, item_id)
     if not p:

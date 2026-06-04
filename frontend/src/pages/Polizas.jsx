@@ -47,10 +47,10 @@ export default function Polizas() {
       key={reloadKey}
       title="Pólizas"
       api={polizasApi}
-      writeRoles={['admin', 'mantenimiento']}
+      writeRoles={['admin']}
       deleteRoles={['admin']}
       extraActions={extra}
-      helpText="Base maestra de proyectos. Incluye fechas de inicio y fin de póliza/garantía. Importa el Excel de Vigencia para cargar las 247 plantas."
+      helpText="Base maestra de proyectos. Incluye fechas de inicio y fin de póliza/garantía. Sólo el administrador puede crear o modificar pólizas; el resto de roles tiene acceso de consulta."
       filters={[{ key: 'status', label: 'estados', options: ['Vigente', 'Por vencer', 'Vencida'] }]}
       columns={[
         { key: 'item', label: '#' },

@@ -153,9 +153,13 @@ export default function Checklists() {
       cols.push({
         key: '_actions', label: 'Acciones', sortable: false,
         render: (r) => (
-          <div style={{ display: 'flex', gap: 4 }}>
-            {canWrite && <button className="btn btn-sm" onClick={() => onEdit(r)}>Ver / Editar</button>}
-            {canDelete && <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>×</button>}
+          <div style={{ display: 'inline-flex', gap: 4 }}>
+            <a className="btn btn-sm" title="Descargar HTML / Guardar PDF"
+              href={`/api/checklists/${r.id}/download`} target="_blank" rel="noreferrer">
+              ⬇
+            </a>
+            {canWrite && <button className="btn btn-sm" title="Ver / Editar" onClick={() => onEdit(r)}>✏️</button>}
+            {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}>×</button>}
           </div>
         ),
       });
@@ -201,11 +205,12 @@ export default function Checklists() {
         }
       >
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--gray-200, #e5e7eb)', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--gray-200, #e5e7eb)', marginBottom: 14, flexWrap: 'wrap' }}>
           {[
             { id: 'general', label: '📝 Info general' },
             { id: 'dc',      label: '⚡ Mediciones DC' },
             { id: 'ac',      label: '🔌 Mediciones AC' },
+            { id: 'fotos',   label: '📸 Evidencias' },
             { id: 'resultado', label: '✅ Resultado' },
           ].map((t) => (
             <button key={t.id} className="btn btn-sm"
@@ -370,6 +375,94 @@ export default function Checklists() {
               <input value={form.frecuenciaHz}
                 onChange={(e) => setForm({ ...form, frecuenciaHz: e.target.value })} />
             </Row>
+          </div>
+        )}
+
+        {tab === 'fotos' && (
+          <div>
+            <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--gray-600)' }}>
+              📸 Sube fotos de la visita (placa del inversor, instalación, falla, etc.).
+              Las imágenes se almacenan en el checklist y aparecen en el HTML descargable.
+            </div>
+
+            {/* Uploader */}
+            <div style={{ marginBottom: 14 }}>
+              <label htmlFor="ck-file-upload"
+                style={{
+                  display: 'inline-block', padding: '10px 18px',
+                  background: 'var(--sky, #0EA5E9)', color: 'white',
+                  borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                }}>
+                + Añadir fotos
+              </label>
+              <input
+                id="ck-file-upload"
+                type="file" accept="image/*" multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  files.forEach((f) => {
+                    if (f.size > 5 * 1024 * 1024) {
+                      toast(`${f.name} es muy grande (max 5MB)`, 'error');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const url = ev.target.result;
+                      const tipo = prompt(`Tipo / descripción para "${f.name}":`, 'Evidencia') || 'Foto';
+                      setForm((prev) => ({
+                        ...prev,
+                        fotos: [...(Array.isArray(prev.fotos) ? prev.fotos : []),
+                                { tipo, url, name: f.name, size: f.size }],
+                      }));
+                    };
+                    reader.readAsDataURL(f);
+                  });
+                  e.target.value = '';   // permitir reseleccionar el mismo archivo
+                }}
+              />
+              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--gray-500)' }}>
+                Máx 5 MB por imagen. Formatos: JPG, PNG, WEBP.
+              </span>
+            </div>
+
+            {/* Galería */}
+            {(form.fotos && form.fotos.length > 0) ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {form.fotos.map((foto, i) => (
+                  <div key={i} style={{
+                    border: '1px solid var(--gray-200)', borderRadius: 8, padding: 8,
+                    width: 200, background: 'var(--gray-50, #f9fafb)',
+                  }}>
+                    <img src={foto.url || foto.data}
+                      alt={foto.tipo || 'Evidencia'}
+                      style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 4 }} />
+                    <input
+                      value={foto.tipo || ''}
+                      onChange={(e) => {
+                        const newFotos = [...form.fotos];
+                        newFotos[i] = { ...foto, tipo: e.target.value };
+                        setForm({ ...form, fotos: newFotos });
+                      }}
+                      placeholder="Descripción..."
+                      style={{ width: '100%', marginTop: 6, fontSize: 11, padding: '3px 6px' }}
+                    />
+                    <button className="btn btn-sm btn-danger"
+                      style={{ width: '100%', marginTop: 4, fontSize: 11 }}
+                      onClick={() => {
+                        if (!confirm('¿Eliminar esta foto?')) return;
+                        setForm({ ...form, fotos: form.fotos.filter((_, n) => n !== i) });
+                      }}>
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: 30, textAlign: 'center', color: 'var(--gray-400)' }}>
+                Sin fotos cargadas todavía.
+              </div>
+            )}
           </div>
         )}
 
