@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Pencil, X, Plus, Ticket, AlertTriangle, Check, Eye, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -401,31 +402,31 @@ export default function Incidencias() {
           <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
             {/* Botón "Ver detalle" — disponible para TODOS los roles, siempre */}
             <button className="btn btn-sm" title="Ver detalle (solo lectura)"
-              onClick={() => setViewModal(r)}>👁</button>
+              onClick={() => setViewModal(r)}><Eye size={14} /></button>
             {canWrite && r.status === 'abierta' && (
               <>
-                <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}>✏️</button>
+                <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}><Pencil size={14} /></button>
                 {!hasTicket(r) && (
                   info.vigente ? (
                     <button className="btn btn-sm btn-primary"
                       title={`Generar ticket — Póliza ${info.msg}`}
                       onClick={() => openGenTicket(r, 'normal')}
                       style={{ padding: '4px 8px' }}>
-                      🎫
+                      <Ticket size={14} />
                     </button>
                   ) : (
                     <button className="btn btn-sm"
                       title={`Asignación especial: ${info.msg}`}
                       onClick={() => openGenTicket(r, 'especial')}
                       style={{ background: '#fef3c7', color: '#92400e', borderColor: '#f59e0b', padding: '4px 8px' }}>
-                      ⚠️
+                      <AlertTriangle size={14} />
                     </button>
                   )
                 )}
-                <button className="btn btn-sm" title="Cerrar incidencia" onClick={() => setCloseModal(r)}>✓</button>
+                <button className="btn btn-sm" title="Cerrar incidencia" onClick={() => setCloseModal(r)}><Check size={14} /></button>
               </>
             )}
-            {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}>×</button>}
+            {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}><X size={14} /></button>}
           </div>
         );
       },

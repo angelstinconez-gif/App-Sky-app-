@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Pencil, X, Plus, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -117,9 +118,9 @@ export default function Tickets() {
     {
       key: '_actions', label: 'Acciones', sortable: false,
       render: (r) => (
-        <div style={{ display: 'inline-flex', gap: 4, flexWrap: 'nowrap' }}>
-          {canWrite && <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}>✏️</button>}
-          {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}>×</button>}
+        <div style={{ display: 'inline-flex', gap: 4, flexWrap: 'nowrap', alignItems: 'center' }}>
+          {canWrite && <button className="btn btn-sm" title="Editar" onClick={() => onEdit(r)}><Pencil size={14} /></button>}
+          {canDelete && <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => onDelete(r.id)}><X size={14} /></button>}
         </div>
       ),
     },
@@ -131,8 +132,12 @@ export default function Tickets() {
         <h2>Tickets</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{items.length} registros</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          <button className="btn btn-sm" onClick={() => downloadXLSX(items, 'Tickets', `tickets_${Date.now()}.xlsx`)}>⬇ Exportar</button>
-          {canWrite && <button className="btn btn-sm btn-primary" onClick={onNew}>+ Nuevo</button>}
+          <button className="btn btn-sm" onClick={() => downloadXLSX(items, 'Tickets', `tickets_${Date.now()}.xlsx`)}>
+            <Download size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Exportar
+          </button>
+          {canWrite && <button className="btn btn-sm btn-primary" onClick={onNew}>
+            <Plus size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Nuevo
+          </button>}
         </div>
       </div>
 

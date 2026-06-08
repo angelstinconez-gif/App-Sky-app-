@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bell, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { notificationsApi } from '../api/endpoints';
 
@@ -80,7 +81,7 @@ export default function NotificationBell() {
         onClick={() => { setOpen((v) => !v); if (!open) refresh(); }}
         style={{ position: 'relative', padding: '6px 10px' }}
       >
-        🔔
+        <Bell size={16} />
         {count > 0 && (
           <span style={{
             position: 'absolute', top: -4, right: -4,
@@ -149,8 +150,9 @@ export default function NotificationBell() {
             <button
               className="btn btn-sm"
               onClick={() => { setOpen(false); navigate('/notificaciones'); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              ⚙️ Configurar canales (push / WhatsApp)
+              <Settings size={14} /> Configurar canales
             </button>
           </div>
         </div>

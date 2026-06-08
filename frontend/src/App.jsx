@@ -27,6 +27,7 @@ import Checklists from './pages/Checklists';
 import Lecciones from './pages/Lecciones';
 import Analisis from './pages/Analisis';
 import TicketsPorProyecto from './pages/TicketsPorProyecto';
+import NotificationToast from './components/NotificationToast';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -35,6 +36,7 @@ function Shell({ children }) {
       <Sidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="main">
         <Topbar onMenu={() => setMobileOpen(true)} />
+        <NotificationToast />
         <div className="content">{children}</div>
       </div>
     </div>
