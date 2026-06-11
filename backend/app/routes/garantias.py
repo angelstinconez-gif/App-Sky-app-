@@ -42,6 +42,8 @@ def _apply(g: Garantia, data: dict):
     g.ticket = parse_str(data.get("ticket"))
     g.status = parse_str(data.get("status"))
     g.upload_date = parse_date(data.get("uploadDate"))
+    g.abierto_por = parse_str(data.get("abiertoPor"))
+    g.abierto_por_email = parse_str(data.get("abiertoPorEmail"))
     g.comments = parse_str(data.get("comments"))
 
 
@@ -49,11 +51,17 @@ def _apply(g: Garantia, data: dict):
 @jwt_required()
 @role_required("admin", "mantenimiento")
 def create_garantia():
+    from flask_jwt_extended import get_jwt
     data = request.get_json(silent=True) or {}
     if not data.get("project"):
         return jsonify(error="missing_project"), 400
     g = Garantia(project=parse_str(data["project"]))
     _apply(g, data)
+    # Auto-llenar quién abre el ticket si no se especificó
+    claims = get_jwt() or {}
+    if not g.abierto_por:
+        g.abierto_por = claims.get("name")
+        g.abierto_por_email = claims.get("email")
     db.session.add(g)
     db.session.flush()
     log_change("garantias", "crear", g.project, new=g.to_dict())

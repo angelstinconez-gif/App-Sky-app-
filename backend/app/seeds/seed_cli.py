@@ -88,6 +88,26 @@ def register_seed_cli(app):
                 "mantenimientos", "fecha_fin_ejecucion",
                 "ALTER TABLE mantenimientos ADD COLUMN fecha_fin_ejecucion DATE"
             ))
+            _try("mantenimientos.duracion_horas", lambda: _add_col(
+                "mantenimientos", "duracion_horas",
+                "ALTER TABLE mantenimientos ADD COLUMN duracion_horas FLOAT"
+            ))
+            _try("mantenimientos.requiere_viaticos", lambda: _add_col(
+                "mantenimientos", "requiere_viaticos",
+                "ALTER TABLE mantenimientos ADD COLUMN requiere_viaticos BOOLEAN DEFAULT FALSE"
+            ))
+            _try("mantenimientos.viatico_id", lambda: _add_col(
+                "mantenimientos", "viatico_id",
+                "ALTER TABLE mantenimientos ADD COLUMN viatico_id INTEGER"
+            ))
+            _try("garantias.abierto_por", lambda: _add_col(
+                "garantias", "abierto_por",
+                "ALTER TABLE garantias ADD COLUMN abierto_por VARCHAR(160)"
+            ))
+            _try("garantias.abierto_por_email", lambda: _add_col(
+                "garantias", "abierto_por_email",
+                "ALTER TABLE garantias ADD COLUMN abierto_por_email VARCHAR(180)"
+            ))
 
             # Viáticos: columnas nuevas
             for col_name, ddl in [

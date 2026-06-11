@@ -71,6 +71,66 @@ def _apply(m: Mantenimiento, data: dict):
     m.resultados = parse_str(data.get("resultados"))
     m.poliza_id = parse_int(data.get("polizaId"))
 
+    # Duración y viáticos
+    try:
+        dh = data.get("duracionHoras")
+        m.duracion_horas = float(dh) if dh not in (None, "") else None
+    except (TypeError, ValueError):
+        m.duracion_horas = None
+    if "requiereViaticos" in data:
+        m.requiere_viaticos = bool(data.get("requiereViaticos"))
+
+
+def _autocrear_viatico(m: Mantenimiento, claims: dict):
+    """Crea un viático pre-llenado para este mantenimiento (estado Solicitado).
+    Las cantidades se calculan en función del número de personas asignadas.
+    Devuelve el id del viático creado o None.
+    """
+    if m.viatico_id:
+        return m.viatico_id
+    try:
+        import json as _json
+        from app.models.viatico import Viatico, TARIFAS
+        # Personas: cuadrilla + técnicos asignados (mínimo 1)
+        tecs_ids = []
+        try:
+            tecs_ids = _json.loads(m.tecnicos_ids or "[]")
+        except Exception:
+            tecs_ids = []
+        # Obtener nombres
+        nombres_tecnicos = []
+        try:
+            from app.models.tecnico import Tecnico
+            if tecs_ids:
+                for t in Tecnico.query.filter(Tecnico.id.in_(tecs_ids)).all():
+                    nombres_tecnicos.append(t.nombre)
+        except Exception:
+            pass
+        personas = max(1, len(nombres_tecnicos) + (1 if m.responsable else 0))
+
+        # Estimación: 1 comida × personas, sin vehículo, estado Solicitado.
+        # El usuario debe completar: vehículo, TAG, placa, monto final.
+        v = Viatico(
+            ticket_id=f"M{m.id}",
+            project=m.project,
+            code=m.code,
+            responsable=m.responsable or (nombres_tecnicos[0] if nombres_tecnicos else None),
+            responsables_extra=_json.dumps(nombres_tecnicos, ensure_ascii=False) if nombres_tecnicos else None,
+            tipo_persona="tecnico",
+            comidas=1,
+            noches=0,
+            fecha_salida=m.fecha_programada or m.fecha_inicio_ejecucion,
+            estado="Solicitado",
+            notas=f"🔧 Auto-generado desde Mantenimiento M{m.id} — {m.tipo or 'Mantenimiento'} en {m.project}",
+        )
+        db.session.add(v)
+        db.session.flush()
+        m.viatico_id = v.id
+        return v.id
+    except Exception as e:
+        print(f"⚠️  No se pudo crear viático auto: {e}")
+        return None
+
 
 @bp.route("", methods=["POST"])
 @jwt_required()
@@ -83,6 +143,10 @@ def create_m():
     _apply(m, data)
     db.session.add(m)
     db.session.flush()
+    # Auto-crear viático si está marcado
+    if m.requiere_viaticos:
+        from flask_jwt_extended import get_jwt
+        _autocrear_viatico(m, get_jwt() or {})
     log_change("mantenimiento", "crear", m.project, new=m.to_dict())
     db.session.commit()
     # Notificar a suscriptores
@@ -109,6 +173,10 @@ def update_m(item_id):
         return jsonify(error="not_found"), 404
     old = m.to_dict()
     _apply(m, request.get_json(silent=True) or {})
+    # Si acaba de marcarse "requiere viáticos" y aún no tiene viático asociado → crearlo
+    if m.requiere_viaticos and not m.viatico_id:
+        from flask_jwt_extended import get_jwt
+        _autocrear_viatico(m, get_jwt() or {})
     log_change("mantenimiento", "editar", m.project, old=old, new=m.to_dict())
     db.session.commit()
     # Notificar cambios de estado relevantes

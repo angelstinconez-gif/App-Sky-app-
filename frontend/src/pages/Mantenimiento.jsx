@@ -17,6 +17,10 @@ const TIPOS = [
   'Mantenimiento Correctivo',
   'Visita Técnica',
   'Mtto Preventivo x visita',
+  'Capacitación',
+  'Movilidad',
+  'Compra de materiales',
+  'Entrega de vehículo',
 ];
 const ESTADOS = ['Programado', 'En curso', 'Completado', 'Cancelado'];
 
@@ -41,6 +45,7 @@ const empty = {
   fechaInicioEjecucion: '', fechaFinEjecucion: '',
   fechaEjecutada: '',
   cuadrilla: '', cuadrillaId: '', tecnicosIds: [], responsable: '',
+  duracionHoras: '', requiereViaticos: false, viaticoId: null,
   descripcion: '', resultados: '',
 };
 
@@ -119,10 +124,20 @@ export default function Mantenimiento() {
   const onSave = async () => {
     if (!form.project) return toast('El proyecto es obligatorio', 'error');
     try {
-      if (editingId) await mantenimientoApi.update(editingId, form);
-      else await mantenimientoApi.create(form);
-      toast(editingId ? 'Actualizado' : 'Creado — notificación enviada a suscriptores');
-      setOpen(false); load();
+      const saved = editingId
+        ? await mantenimientoApi.update(editingId, form)
+        : await mantenimientoApi.create(form);
+      const generoViatico = form.requiereViaticos && !form.viaticoId && saved?.viaticoId;
+      if (generoViatico) {
+        toast(`✓ Mantenimiento guardado · Viático #${saved.viaticoId} pendiente de completar`);
+        setOpen(false); load();
+        if (confirm(`Se creó el viático #${saved.viaticoId} en estado Solicitado.\n\n¿Ir a completarlo ahora (TAG, placa, monto)?`)) {
+          navigate('/viaticos');
+        }
+      } else {
+        toast(editingId ? 'Actualizado' : 'Creado — notificación enviada a suscriptores');
+        setOpen(false); load();
+      }
     } catch (e) {
       toast(e?.response?.data?.message || 'Error al guardar', 'error');
     }
@@ -333,6 +348,34 @@ export default function Mantenimiento() {
             <select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })}>
               {ESTADOS.map((s) => <option key={s}>{s}</option>)}
             </select>
+          </FormRow>
+
+          <FormRow label="⏱ Duración estimada (horas)">
+            <input type="number" step="0.5" min="0" value={form.duracionHoras}
+              onChange={(e) => setForm({ ...form, duracionHoras: e.target.value })}
+              placeholder="Ej: 4" />
+          </FormRow>
+
+          <FormRow label="💵 ¿Requiere viáticos?">
+            <select
+              value={form.requiereViaticos ? 'si' : 'no'}
+              onChange={(e) => setForm({ ...form, requiereViaticos: e.target.value === 'si' })}
+            >
+              <option value="no">No</option>
+              <option value="si">Sí — se generará un viático automáticamente</option>
+            </select>
+            {form.requiereViaticos && !form.viaticoId && (
+              <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', padding: 6, borderRadius: 4, marginTop: 4 }}>
+                ⚠️ Al guardar se creará un viático en estado <strong>Solicitado</strong>.
+                Deberás completar TAG, placa, monto y comprobante en la sección Viáticos.
+              </div>
+            )}
+            {form.viaticoId && (
+              <div style={{ fontSize: 11, color: '#065f46', background: '#dcfce7', padding: 6, borderRadius: 4, marginTop: 4 }}>
+                ✓ Viático asociado: <strong>#{form.viaticoId}</strong>{' '}
+                <a href="/viaticos" target="_blank" rel="noreferrer">Ir a completar →</a>
+              </div>
+            )}
           </FormRow>
 
           <FormRow label="📅 Fecha programada">

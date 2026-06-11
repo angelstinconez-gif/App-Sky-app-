@@ -30,6 +30,7 @@ const empty = {
   error: '', supplier: '', contact: '', ticket: '',
   status: 'En revisión',
   uploadDate: new Date().toISOString().slice(0, 10),
+  abiertoPor: '',
   comments: '',
 };
 
@@ -55,7 +56,7 @@ function diasColor(d, status) {
 }
 
 export default function Garantias() {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const toast = useToast();
   const canWrite = hasRole('admin', 'mantenimiento');
   const canDelete = hasRole('admin');
@@ -116,7 +117,11 @@ export default function Garantias() {
   };
 
   const onNew = () => {
-    setForm({ ...empty, uploadDate: new Date().toISOString().slice(0, 10) });
+    setForm({
+      ...empty,
+      uploadDate: new Date().toISOString().slice(0, 10),
+      abiertoPor: user?.name || '',
+    });
     setEditingId(null);
     setOpen(true);
   };
@@ -162,6 +167,12 @@ export default function Garantias() {
       { key: 'error', label: 'Error' },
       { key: 'supplier', label: 'Proveedor' },
       { key: 'ticket', label: 'Ticket' },
+      {
+        key: 'abiertoPor', label: 'Abrió',
+        render: (r) => r.abiertoPor
+          ? <span style={{ fontSize: 11 }}>👤 {r.abiertoPor}</span>
+          : <span style={{ color: 'var(--gray-400)' }}>—</span>,
+      },
       {
         key: 'status', label: 'Proceso',
         render: (r) => {
@@ -345,6 +356,11 @@ export default function Garantias() {
           <FormRow label="Fecha de alta">
             <input type="date" value={form.uploadDate?.slice(0, 10) || ''}
               onChange={(e) => setForm({ ...form, uploadDate: e.target.value })} />
+          </FormRow>
+          <FormRow label="👤 Abrió el ticket">
+            <input value={form.abiertoPor || ''}
+              onChange={(e) => setForm({ ...form, abiertoPor: e.target.value })}
+              placeholder={user?.name || 'Nombre de quien abre'} />
           </FormRow>
 
           <FormRow label="Comentarios" full>

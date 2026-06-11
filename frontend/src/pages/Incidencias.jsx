@@ -53,6 +53,7 @@ export default function Incidencias() {
   const [q, setQ] = useState('');
   const [priority, setPriority] = useState('');
   const [status, setStatus] = useState('');
+  const [cuadrillaFilter, setCuadrillaFilter] = useState('');
 
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(null);
@@ -462,6 +463,13 @@ export default function Incidencias() {
           <option value="abierta">Abierta</option>
           <option value="cerrada">Cerrada</option>
         </select>
+        <select className="filter-select" value={cuadrillaFilter}
+          onChange={(e) => setCuadrillaFilter(e.target.value)}>
+          <option value="">Todas las cuadrillas</option>
+          {[...new Set(polizas.map((p) => p.cuadrilla).filter(Boolean))].sort().map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
       </div>
 
       {/* ── Banner: incidencias abiertas sin ticket ── */}
@@ -503,7 +511,20 @@ export default function Incidencias() {
         );
       })()}
 
-      {loading ? <div className="empty"><span className="spinner" /></div> : <DataTable columns={columns} data={items} />}
+      {loading ? <div className="empty"><span className="spinner" /></div> : (
+        <DataTable columns={columns} data={
+          cuadrillaFilter
+            ? items.filter((r) => {
+                // Match por código de proyecto o por nombre de sitio en póliza con esa cuadrilla
+                const p = polizas.find((x) =>
+                  (r.code && x.code?.toLowerCase() === r.code.toLowerCase()) ||
+                  (r.site && x.project?.toLowerCase() === r.site.toLowerCase())
+                );
+                return p && p.cuadrilla === cuadrillaFilter;
+              })
+            : items
+        } />
+      )}
 
       {/* ── Modal: Generar ticket desde incidencia ── */}
       <Modal

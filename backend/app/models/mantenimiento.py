@@ -23,6 +23,9 @@ class Mantenimiento(db.Model):
     tecnicos_ids = db.Column(db.Text)              # JSON: [id1, id2,...]
     descripcion = db.Column(db.Text)
     resultados = db.Column(db.Text)
+    duracion_horas = db.Column(db.Float)            # duración estimada/real en horas
+    requiere_viaticos = db.Column(db.Boolean, default=False)
+    viatico_id = db.Column(db.Integer)              # id del viático auto-creado (si requiere)
     poliza_id = db.Column(db.Integer, db.ForeignKey("polizas.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -88,5 +91,8 @@ class Mantenimiento(db.Model):
             "tecnicosData": nombres,
             "descripcion": self.descripcion,
             "resultados": self.resultados,
+            "duracionHoras": self.duracion_horas,
+            "requiereViaticos": bool(self.requiere_viaticos),
+            "viaticoId": self.viatico_id,
             "polizaId": self.poliza_id,
         }
