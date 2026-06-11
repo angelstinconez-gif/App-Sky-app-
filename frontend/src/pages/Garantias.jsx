@@ -3,7 +3,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { garantiasApi, polizasApi, ticketsApi } from '../api/endpoints';
+import { garantiasApi, polizasApi, ticketsApi, assigneesApi } from '../api/endpoints';
 import { fmtDate, downloadXLSX } from '../utils/format';
 
 const STATUSES = [
@@ -63,6 +63,7 @@ export default function Garantias() {
 
   const [items, setItems] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [assignees, setAssignees] = useState([]);
   const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -82,6 +83,7 @@ export default function Garantias() {
   useEffect(() => {
     polizasApi.list().then(setPolizas).catch(() => {});
     ticketsApi.list().then(setTickets).catch(() => {});
+    assigneesApi.list().then(setAssignees).catch(() => {});
   }, []);
 
   // ── Auto-fill desde Pólizas (igual que Incidencias) ──
@@ -132,6 +134,7 @@ export default function Garantias() {
   };
   const onSave = async () => {
     if (!form.project) return toast('El proyecto es obligatorio', 'error');
+    if (!form.abiertoPor) return toast('Indica quién abre el ticket (responsable)', 'error');
     // Ticket obligatorio salvo "caso especial"
     if (!form.ticket && !form._casoEspecial) {
       return toast('Asocia un ticket o marca "caso especial"', 'error');
@@ -357,10 +360,29 @@ export default function Garantias() {
             <input type="date" value={form.uploadDate?.slice(0, 10) || ''}
               onChange={(e) => setForm({ ...form, uploadDate: e.target.value })} />
           </FormRow>
-          <FormRow label="👤 Abrió el ticket">
-            <input value={form.abiertoPor || ''}
-              onChange={(e) => setForm({ ...form, abiertoPor: e.target.value })}
-              placeholder={user?.name || 'Nombre de quien abre'} />
+          <FormRow label="👤 Abrió el ticket (responsable) *">
+            <select value={form.abiertoPor || ''}
+              onChange={(e) => setForm({ ...form, abiertoPor: e.target.value })}>
+              <option value="">— Elegir responsable —</option>
+              <optgroup label="👤 Usuarios de la plataforma">
+                {assignees.filter((a) => a.type === 'user').map((a) => (
+                  <option key={a.id} value={a.value}>{a.label} ({a.role})</option>
+                ))}
+              </optgroup>
+              <optgroup label="🧑‍🔧 Técnicos">
+                {assignees.filter((a) => a.type === 'tecnico').map((a) => (
+                  <option key={a.id} value={a.value}>{a.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="👥 Cuadrillas">
+                {assignees.filter((a) => a.type === 'cuadrilla').map((a) => (
+                  <option key={a.id} value={a.value}>{a.label}</option>
+                ))}
+              </optgroup>
+            </select>
+            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+              Persona responsable del seguimiento de esta garantía.
+            </div>
           </FormRow>
 
           <FormRow label="Comentarios" full>
