@@ -45,6 +45,7 @@ def create_app(config_class="config.Config"):
         checklist,
         leccion,
         analisis,
+        revision_semanal,
     )
 
     # ── Blueprints ──
@@ -72,6 +73,7 @@ def create_app(config_class="config.Config"):
     from app.routes.lecciones import bp as lecciones_bp
     from app.routes.analisis import bp as analisis_bp
     from app.routes.search import bp as search_bp
+    from app.routes.revisiones_semanales import bp as revsem_bp
 
     app.register_blueprint(auth_bp,         url_prefix="/api/auth")
     app.register_blueprint(users_bp,        url_prefix="/api/users")
@@ -97,6 +99,7 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(lecciones_bp,    url_prefix="/api/lecciones")
     app.register_blueprint(analisis_bp,     url_prefix="/api/analisis")
     app.register_blueprint(search_bp,       url_prefix="/api/search")
+    app.register_blueprint(revsem_bp,       url_prefix="/api/revisiones-semanales")
 
     # ── CLI: seed ──
     from app.seeds.seed_cli import register_seed_cli

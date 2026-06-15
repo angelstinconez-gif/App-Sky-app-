@@ -188,6 +188,8 @@ def register_seed_cli(app):
             _try("crear checklists", lambda: _create_if_missing(_Checklist))
             _try("crear lecciones", lambda: _create_if_missing(_Leccion))
             _try("crear analisis_plantas", lambda: _create_if_missing(_Analisis))
+            from app.models.revision_semanal import RevisionSemanal as _RS
+            _try("crear revisiones_semanales", lambda: _create_if_missing(_RS))
             _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
             _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
 

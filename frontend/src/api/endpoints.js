@@ -66,6 +66,13 @@ export const analisisApi = {
 export const searchApi = {
   global: (q, opts = {}) => api.get('/search', { params: { q, ...opts } }).then((r) => r.data),
 };
+
+export const revsemApi = {
+  estados: () => api.get('/revisiones-semanales/estados').then((r) => r.data),
+  plantas: (params) => api.get('/revisiones-semanales/plantas', { params }).then((r) => r.data),
+  historial: (polizaId) => api.get(`/revisiones-semanales/historial/${polizaId}`).then((r) => r.data),
+  upsert: (data) => api.post('/revisiones-semanales', data).then((r) => r.data),
+};
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');

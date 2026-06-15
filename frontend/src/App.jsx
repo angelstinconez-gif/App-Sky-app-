@@ -27,6 +27,7 @@ import Checklists from './pages/Checklists';
 import Lecciones from './pages/Lecciones';
 import Analisis from './pages/Analisis';
 import TicketsPorProyecto from './pages/TicketsPorProyecto';
+import RevisionSemanal from './pages/RevisionSemanal';
 import NotificationToast from './components/NotificationToast';
 
 function Shell({ children }) {
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="/lecciones" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><Lecciones /></Protected>} />
         <Route path="/analisis" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><Analisis /></Protected>} />
         <Route path="/tickets-por-proyecto" element={<Protected roles={['admin', 'operator', 'mantenimiento']}><TicketsPorProyecto /></Protected>} />
+        <Route path="/revision-semanal" element={<Protected roles={['admin', 'operator', 'mantenimiento', 'tecnico']}><RevisionSemanal /></Protected>} />
         <Route path="/mantenimiento" element={<Protected roles={['admin', 'mantenimiento', 'tecnico']}><Mantenimiento /></Protected>} />
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
