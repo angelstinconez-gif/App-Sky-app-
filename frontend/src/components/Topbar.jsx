@@ -3,15 +3,16 @@ import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 const TITLES = {
-  '/dashboard':     { title: 'Dashboard',     sub: 'Resumen general del sistema' },
-  '/incidencias':   { title: 'Incidencias',   sub: 'Registro de fallas y eventos' },
+  '/dashboard':     { title: 'Dashboard',     sub: 'Resumen general' },
+  '/incidencias':   { title: 'Incidencias',   sub: 'Fallas y eventos' },
   '/tickets':       { title: 'Tickets',       sub: 'Solicitudes de servicio' },
-  '/garantias':     { title: 'Garantías',     sub: 'Reclamos de garantía a fabricantes' },
+  '/garantias':     { title: 'Garantías',     sub: 'Reclamos a fabricantes' },
   '/mantenimiento': { title: 'Mantenimiento', sub: 'Planificación y ejecución' },
-  '/polizas':       { title: 'Pólizas',       sub: 'Contratos de mantenimiento' },
-  '/directorio':    { title: 'Directorio',    sub: 'Contactos del sistema' },
+  '/polizas':       { title: 'Pólizas',       sub: 'Contratos' },
+  '/directorio':    { title: 'Directorio',    sub: 'Contactos' },
   '/cuadrillas':    { title: 'Cuadrillas',    sub: 'Equipos de trabajo' },
-  '/errores':       { title: 'Catálogo de errores', sub: 'Códigos por fabricante' },
+  '/tecnicos':      { title: 'Técnicos',      sub: 'Personal' },
+  '/errores':       { title: 'Catálogo errores', sub: 'Códigos por fabricante' },
   '/calendario':    { title: 'Calendario',    sub: 'Eventos programados' },
   '/reportes':      { title: 'Reportes',      sub: 'Análisis y exportación' },
   '/historial':     { title: 'Historial',     sub: 'Registro de cambios' },
@@ -19,9 +20,9 @@ const TITLES = {
   '/notificaciones':{ title: 'Notificaciones',sub: 'Canales y suscripciones' },
   '/viaticos':      { title: 'Viáticos',      sub: 'Gastos de visita' },
   '/checklists':    { title: 'Checklists',    sub: 'Visitas de revisión' },
-  '/lecciones':     { title: 'Lecciones aprendidas', sub: 'Base de conocimiento' },
-  '/analisis':      { title: 'Análisis de datos', sub: 'Plantas PV vigentes · cumplimiento mensual' },
-  '/tickets-por-proyecto': { title: 'Tickets por proyecto', sub: 'Resumen abiertos / cerrados / vencidos' },
+  '/lecciones':     { title: 'Lecciones',     sub: 'Base de conocimiento' },
+  '/analisis':      { title: 'Análisis PV',   sub: 'Cumplimiento mensual' },
+  '/tickets-por-proyecto': { title: 'Tickets x proyecto', sub: 'Estado por planta' },
 };
 
 export default function Topbar({ onMenu, actions }) {
@@ -29,19 +30,20 @@ export default function Topbar({ onMenu, actions }) {
   const info = TITLES[pathname] || { title: 'Centro de Incidencias', sub: '' };
 
   return (
-    <header className="topbar" style={{ gap: 12 }}>
-      <button className="menu-toggle" onClick={onMenu}>☰</button>
-      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span className="page-title" style={{ lineHeight: 1.1 }}>{info.title}</span>
-        {info.sub && <span className="page-sub" style={{ fontSize: 10, color: 'var(--gray-400)' }}>{info.sub}</span>}
+    <header className="topbar">
+      <button className="menu-toggle" onClick={onMenu} aria-label="Menú">☰</button>
+
+      <div className="topbar-title">
+        <span className="page-title">{info.title}</span>
+        {info.sub && <span className="page-sub">{info.sub}</span>}
       </div>
 
-      {/* Buscador global en el centro */}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', maxWidth: 600 }}>
+      {/* Buscador global — siempre visible, ocupa el centro */}
+      <div className="topbar-search">
         <GlobalSearch />
       </div>
 
-      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+      <div className="topbar-actions">
         {actions}
         <NotificationBell />
       </div>

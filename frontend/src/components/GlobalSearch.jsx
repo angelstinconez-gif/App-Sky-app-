@@ -94,10 +94,10 @@ export default function GlobalSearch() {
   }, {});
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', flex: 1, maxWidth: 480 }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', maxWidth: 560 }}>
       <div style={{ position: 'relative' }}>
-        <Search size={14} style={{
-          position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+        <Search size={15} style={{
+          position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
           color: 'var(--gray-400, #94a3b8)', pointerEvents: 'none',
         }} />
         <input
@@ -105,13 +105,15 @@ export default function GlobalSearch() {
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Buscar tickets, incidencias, mantto, directorio… (tip: /)"
+          placeholder="🔍 Buscar tickets, incidencias, mantto, directorio…  ( / para enfocar )"
           style={{
-            width: '100%', padding: '7px 32px 7px 32px',
-            border: '1px solid var(--gray-200, #e5e7eb)',
-            borderRadius: 8, fontSize: 13, background: 'var(--card-bg, #fff)',
-            outline: 'none',
+            width: '100%', padding: '9px 36px 9px 36px',
+            border: '1.5px solid var(--gray-200, #e5e7eb)',
+            borderRadius: 10, fontSize: 13, background: 'var(--gray-50, #f9fafb)',
+            outline: 'none', transition: 'all .15s',
           }}
+          onMouseOver={(e) => e.target.style.borderColor = 'var(--sky, #0EA5E9)'}
+          onMouseOut={(e) => e.target.style.borderColor = ''}
         />
         {(q || loading) && (
           <button onClick={() => { setQ(''); setResults(null); }} style={{
