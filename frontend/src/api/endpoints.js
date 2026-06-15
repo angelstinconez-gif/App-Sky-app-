@@ -19,11 +19,13 @@ const crud = (path) => ({
 export const incidenciasApi = {
   ...crud('/incidencias'),
   close: (id, data) => api.post(`/incidencias/${id}/close`, data).then((r) => r.data),
+  related: (params) => api.get('/incidencias/related', { params }).then((r) => r.data),
 };
 
 export const ticketsApi = {
   ...crud('/tickets'),
   close: (id, data) => api.post(`/tickets/${id}/close`, data).then((r) => r.data),
+  related: (params) => api.get('/tickets/related', { params }).then((r) => r.data),
 };
 
 export const erroresApi = {

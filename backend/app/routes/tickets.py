@@ -53,6 +53,65 @@ def list_tickets():
     return jsonify([i.to_dict() for i in items])
 
 
+@bp.route("/related", methods=["GET"])
+@jwt_required()
+def related_tickets():
+    """Busca tickets relacionados al crear uno nuevo, para evitar duplicados."""
+    args = request.args
+    site = (args.get("site") or "").strip()
+    code = (args.get("code") or "").strip()
+    incidencia_id = args.get("incidenciaId")
+    exclude_id = args.get("excludeId")
+    if not site and not code and not incidencia_id:
+        return jsonify([])
+
+    q = Ticket.query
+    filtros = []
+    if site:
+        filtros.append(Ticket.site.ilike(f"%{site}%"))
+    if code:
+        filtros.append(Ticket.project_code.ilike(f"%{code}%"))
+    if incidencia_id:
+        try:
+            filtros.append(Ticket.incidencia_id == int(incidencia_id))
+        except (TypeError, ValueError):
+            pass
+    if filtros:
+        q = q.filter(or_(*filtros))
+    if exclude_id:
+        try:
+            q = q.filter(Ticket.id != int(exclude_id))
+        except (TypeError, ValueError):
+            pass
+
+    items = q.order_by(Ticket.open_date.desc().nullslast(), Ticket.id.desc()).limit(15).all()
+
+    site_l = site.lower()
+    code_l = code.lower()
+    out = []
+    for t in items:
+        d = t.to_dict()
+        razones = []
+        t_site = (t.site or "").lower()
+        t_code = (t.project_code or "").lower()
+        if site_l and (t_site == site_l or site_l in t_site or t_site in site_l):
+            razones.append("mismo proyecto")
+        if code_l and (t_code == code_l or code_l in t_code or t_code in code_l):
+            razones.append("mismo código")
+        if incidencia_id:
+            try:
+                if t.incidencia_id == int(incidencia_id):
+                    razones.append("misma incidencia")
+            except (TypeError, ValueError):
+                pass
+        d["tieneRelacion"] = len(razones) > 0
+        d["razones"] = razones
+        d["estaAbierto"] = (t.status or "").strip().lower() != "cerrado"
+        out.append(d)
+    out.sort(key=lambda x: (not x.get("tieneRelacion"), -(x.get("id") or 0)))
+    return jsonify(out)
+
+
 def _apply(t, data):
     t.title = parse_str(data.get("title")) or t.title
     t.site = parse_str(data.get("site"))

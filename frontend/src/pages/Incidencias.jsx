@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, X, Plus, Ticket, AlertTriangle, Check, Eye, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
+import RelatedAlert from '../components/RelatedAlert';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -55,6 +56,9 @@ export default function Incidencias() {
   const [status, setStatus] = useState('');
   const [cuadrillaFilter, setCuadrillaFilter] = useState('');
 
+  const [relatedIncidencias, setRelatedIncidencias] = useState([]);
+  const [relatedTickets, setRelatedTickets] = useState([]);
+
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(null);
   const [viewModal, setViewModal] = useState(null);   // incidencia para visualización (solo lectura)
@@ -76,6 +80,30 @@ export default function Incidencias() {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [q, priority, status]);
+
+  // Debounce: buscar incidencias y tickets relacionados mientras edita el form
+  useEffect(() => {
+    if (!openModal) {
+      setRelatedIncidencias([]); setRelatedTickets([]); return;
+    }
+    if (!form.site && !form.code) {
+      setRelatedIncidencias([]); setRelatedTickets([]); return;
+    }
+    const t = setTimeout(() => {
+      incidenciasApi.related({
+        site: form.site || '',
+        code: form.code || '',
+        errCode: form.errCode || '',
+        excludeId: editingId || '',
+      }).then(setRelatedIncidencias).catch(() => setRelatedIncidencias([]));
+      // Tickets del mismo proyecto
+      ticketsApi.related({
+        site: form.site || '',
+        code: form.code || '',
+      }).then(setRelatedTickets).catch(() => setRelatedTickets([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [openModal, form.site, form.code, form.errCode, editingId]);
 
   // Catálogos sólo se cargan una vez
   useEffect(() => {
@@ -199,6 +227,22 @@ export default function Incidencias() {
 
   const onSave = async () => {
     if (!form.site) return toast('El sitio es obligatorio', 'error');
+    // Aviso de duplicados al CREAR (no al editar)
+    if (!editingId) {
+      const abiertasMismoErr = relatedIncidencias.filter((r) =>
+        r.tieneRelacion && (r.status || '').toLowerCase() === 'abierta'
+      );
+      if (abiertasMismoErr.length > 0) {
+        const lista = abiertasMismoErr.slice(0, 3).map((r) =>
+          `#${r.id} · ${r.problem || r.errCode || 's/desc'} (${r.razones?.join(', ') || '—'})`
+        ).join('\n');
+        const ok = confirm(
+          `⚠️ Ya existen ${abiertasMismoErr.length} incidencia(s) abierta(s) con relación:\n\n${lista}\n\n` +
+          `¿Aún así deseas crear una nueva?`
+        );
+        if (!ok) return;
+      }
+    }
     try {
       // Si pidió crear ticket, forzar Ticket Alta = SI
       const payload = { ...form };
@@ -735,6 +779,11 @@ export default function Incidencias() {
           </>
         }
       >
+        {/* Aviso de incidencias y tickets ya ligados al proyecto */}
+        <RelatedAlert items={relatedIncidencias} kind="incidencia"
+          onNavigate={(route) => { setOpenModal(false); window.open(route, '_blank'); }} />
+        <RelatedAlert items={relatedTickets} kind="ticket"
+          onNavigate={(route) => { setOpenModal(false); window.open(route, '_blank'); }} />
         <div className="form-grid">
           {/* ── PROYECTO PRIMERO ── */}
           <FormRow label="Código proyecto">

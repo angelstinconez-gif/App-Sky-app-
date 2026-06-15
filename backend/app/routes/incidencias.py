@@ -63,6 +63,60 @@ def list_incidencias():
     return jsonify([i.to_dict() for i in items])
 
 
+@bp.route("/related", methods=["GET"])
+@jwt_required()
+def related_incidencias():
+    """Busca incidencias relacionadas por (site, code, errCode).
+    Sirve para advertir al usuario antes de crear una duplicada.
+    """
+    args = request.args
+    site = (args.get("site") or "").strip()
+    code = (args.get("code") or "").strip()
+    err_code = (args.get("errCode") or "").strip()
+    exclude_id = args.get("excludeId")
+    if not site and not code:
+        return jsonify([])
+
+    q = Incidencia.query
+    # Match con wildcards para tolerar pequeñas variaciones
+    filtros = []
+    if site:
+        filtros.append(Incidencia.site.ilike(f"%{site}%"))
+    if code:
+        filtros.append(Incidencia.code.ilike(f"%{code}%"))
+    if filtros:
+        q = q.filter(or_(*filtros))
+    if exclude_id:
+        try:
+            q = q.filter(Incidencia.id != int(exclude_id))
+        except (TypeError, ValueError):
+            pass
+
+    items = q.order_by(Incidencia.inc_date.desc().nullslast(), Incidencia.id.desc()).limit(15).all()
+
+    site_l = site.lower()
+    code_l = code.lower()
+    out = []
+    for i in items:
+        d = i.to_dict()
+        relacion = []
+        i_site = (i.site or "").lower()
+        i_code = (i.code or "").lower()
+        # Misma incidencia: nombres exactos o substring fuerte
+        if site_l and (i_site == site_l or site_l in i_site or i_site in site_l):
+            relacion.append("mismo proyecto")
+        if code_l and (i_code == code_l or code_l in i_code or i_code in code_l):
+            relacion.append("mismo código")
+        if err_code and (i.err_code or "") == err_code:
+            relacion.append("mismo código de error")
+        d["tieneRelacion"] = len(relacion) > 0
+        d["razones"] = relacion
+        out.append(d)
+    # Ordena: primero los con relación directa, luego por fecha
+    out.sort(key=lambda x: (not x.get("tieneRelacion"), -(x.get("id") or 0)))
+    return jsonify(out)
+
+
 @bp.route("/<int:item_id>", methods=["GET"])
 @jwt_required()
 def get_incidencia(item_id):

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, X, Plus, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
+import RelatedAlert from '../components/RelatedAlert';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { ticketsApi, polizasApi, assigneesApi } from '../api/endpoints';
+import { ticketsApi, polizasApi, assigneesApi, incidenciasApi } from '../api/endpoints';
 import { fmtDate, priorityClass, statusClass, downloadXLSX } from '../utils/format';
 
 const STATUSES = ['Abierto', 'En proceso', 'Cerrado'];
@@ -29,6 +30,8 @@ export default function Tickets() {
   const [priority, setPriority] = useState('');
 
   const [openModal, setOpenModal] = useState(false);
+  const [relatedTickets, setRelatedTickets] = useState([]);
+  const [relatedIncidencias, setRelatedIncidencias] = useState([]);
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
 
@@ -44,6 +47,29 @@ export default function Tickets() {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [q, status, priority]);
+
+  // Debounce: buscar tickets E incidencias relacionados mientras se edita el form
+  useEffect(() => {
+    if (!openModal) {
+      setRelatedTickets([]); setRelatedIncidencias([]); return;
+    }
+    if (!form.site && !form.projectCode) {
+      setRelatedTickets([]); setRelatedIncidencias([]); return;
+    }
+    const t = setTimeout(() => {
+      ticketsApi.related({
+        site: form.site || '',
+        code: form.projectCode || '',
+        excludeId: editingId || '',
+      }).then(setRelatedTickets).catch(() => setRelatedTickets([]));
+      // También buscar incidencias del mismo proyecto
+      incidenciasApi.related({
+        site: form.site || '',
+        code: form.projectCode || '',
+      }).then(setRelatedIncidencias).catch(() => setRelatedIncidencias([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [openModal, form.site, form.projectCode, editingId]);
 
   useEffect(() => {
     polizasApi.list().then(setPolizas).catch(() => {});
@@ -88,6 +114,23 @@ export default function Tickets() {
 
   const onSave = async () => {
     if (!form.title) return toast('El título es obligatorio', 'error');
+    // Aviso de tickets abiertos relacionados al CREAR
+    if (!editingId) {
+      const abiertos = relatedTickets.filter((r) =>
+        r.tieneRelacion && r.estaAbierto !== false &&
+        (r.status || '').toLowerCase() !== 'cerrado'
+      );
+      if (abiertos.length > 0) {
+        const lista = abiertos.slice(0, 3).map((r) =>
+          `#${r.id} · ${r.title || 's/título'} (${r.razones?.join(', ') || '—'}) [${r.status || ''}]`
+        ).join('\n');
+        const ok = confirm(
+          `⚠️ Ya existen ${abiertos.length} ticket(s) abierto(s) para este proyecto:\n\n${lista}\n\n` +
+          `¿Aún así deseas crear uno nuevo?`
+        );
+        if (!ok) return;
+      }
+    }
     try {
       if (editingId) await ticketsApi.update(editingId, form);
       else await ticketsApi.create(form);
@@ -167,6 +210,12 @@ export default function Tickets() {
           </>
         }
       >
+        {/* Aviso de incidencias relacionadas al proyecto */}
+        <RelatedAlert items={relatedIncidencias} kind="incidencia"
+          onNavigate={(route) => { setOpenModal(false); window.open(route, '_blank'); }} />
+        {/* Aviso de tickets ya existentes para el mismo proyecto */}
+        <RelatedAlert items={relatedTickets} kind="ticket"
+          onNavigate={(route) => { setOpenModal(false); window.open(route, '_blank'); }} />
         <div className="form-grid">
           <FormRow label="Título *" full>
             <input list="tk-projects" value={form.title}
