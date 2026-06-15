@@ -12,7 +12,8 @@ class Mantenimiento(db.Model):
     project = db.Column(db.String(200), nullable=False, index=True)
     code = db.Column(db.String(80))
     tipo = db.Column(db.String(60))                # Preventivo, Correctivo, Limpieza
-    fecha_programada = db.Column(db.Date, index=True)
+    fecha_programada = db.Column(db.Date, index=True)        # inicio programado (compat)
+    fecha_fin_programada = db.Column(db.Date)                # fin programado (nuevo)
     fecha_ejecutada = db.Column(db.Date)           # (compat) — equivale a fecha_fin_ejecucion
     fecha_inicio_ejecucion = db.Column(db.Date)    # cuando arrancó la ejecución real
     fecha_fin_ejecucion = db.Column(db.Date)       # cuando terminó la ejecución
@@ -59,6 +60,18 @@ class Mantenimiento(db.Model):
         # En curso → días desde inicio hasta hoy
         return max(0, (datetime.utcnow().date() - ini).days)
 
+    def dias_programados(self):
+        """Días planeados entre fecha programada inicio y fin (planificación)."""
+        ini = self.fecha_programada
+        fin = self.fecha_fin_programada
+        if not ini or not fin:
+            return None
+        return max(0, (fin - ini).days)
+
+    def dias_en_sitio(self):
+        """Alias: días que el equipo lleva en sitio (igual que dias_en_ejecucion)."""
+        return self.dias_en_ejecucion()
+
     def en_curso(self):
         return bool(self.fecha_inicio_ejecucion and not (self.fecha_fin_ejecucion or self.fecha_ejecutada))
 
@@ -78,10 +91,13 @@ class Mantenimiento(db.Model):
             "code": self.code,
             "tipo": self.tipo,
             "fechaProgramada": self.fecha_programada.isoformat() if self.fecha_programada else None,
+            "fechaFinProgramada": self.fecha_fin_programada.isoformat() if self.fecha_fin_programada else None,
             "fechaEjecutada": self.fecha_ejecutada.isoformat() if self.fecha_ejecutada else None,
             "fechaInicioEjecucion": self.fecha_inicio_ejecucion.isoformat() if self.fecha_inicio_ejecucion else None,
             "fechaFinEjecucion": self.fecha_fin_ejecucion.isoformat() if self.fecha_fin_ejecucion else None,
+            "diasProgramados": self.dias_programados(),
             "diasEnEjecucion": self.dias_en_ejecucion(),
+            "diasEnSitio": self.dias_en_sitio(),
             "enCurso": self.en_curso(),
             "estado": self.estado,
             "cuadrilla": self.cuadrilla,

@@ -62,6 +62,10 @@ export const analisisApi = {
   ...crud('/analisis'),
   kpis: (mes) => api.get('/analisis/kpis', { params: mes ? { mes } : {} }).then((r) => r.data),
 };
+
+export const searchApi = {
+  global: (q, opts = {}) => api.get('/search', { params: { q, ...opts } }).then((r) => r.data),
+};
 export const eventosApi = crud('/eventos');
 export const mantenimientoApi = crud('/mantenimiento');
 export const usersApi = crud('/users');

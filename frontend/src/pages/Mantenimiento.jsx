@@ -41,7 +41,7 @@ function daysFromToday(d) {
 
 const empty = {
   project: '', code: '', tipo: 'Mtto Preventivo 1/2 FV', estado: 'Programado',
-  fechaProgramada: '',
+  fechaProgramada: '', fechaFinProgramada: '',
   fechaInicioEjecucion: '', fechaFinEjecucion: '',
   fechaEjecutada: '',
   cuadrilla: '', cuadrillaId: '', tecnicosIds: [], responsable: '',
@@ -154,29 +154,79 @@ export default function Mantenimiento() {
       { key: 'code', label: 'Código' },
       { key: 'tipo', label: 'Tipo' },
       { key: 'estado', label: 'Estado' },
-      { key: 'fechaProgramada', label: '📅 Programado', render: (r) => fmtDate(r.fechaProgramada) },
       {
-        key: 'fechaInicioEjecucion', label: '▶ Inicio',
+        key: 'fechaProgramada', label: '📅 Inicio prog.',
+        render: (r) => fmtDate(r.fechaProgramada),
+      },
+      {
+        key: 'fechaFinProgramada', label: '🏁 Fin prog.',
+        render: (r) => fmtDate(r.fechaFinProgramada),
+      },
+      {
+        key: '_durProg', label: 'Dur. prog.',
+        render: (r) => {
+          const d = daysBetween(r.fechaProgramada, r.fechaFinProgramada);
+          if (d === null) return <span style={{ color: 'var(--gray-400)' }}>—</span>;
+          return (
+            <span style={{
+              background: '#dbeafe', color: '#1e40af',
+              padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+            }}>
+              {d}d
+            </span>
+          );
+        },
+      },
+      {
+        key: 'fechaInicioEjecucion', label: '▶ Inicio ejec.',
         render: (r) => fmtDate(r.fechaInicioEjecucion),
       },
       {
-        key: 'fechaFinEjecucion', label: '✓ Fin',
+        key: 'fechaFinEjecucion', label: '✓ Fin ejec.',
         render: (r) => fmtDate(r.fechaFinEjecucion || r.fechaEjecutada),
       },
       {
-        key: '_diasEjec', label: 'Días ejec.',
+        key: '_diasEnSitio', label: '📍 Días en sitio',
         render: (r) => {
           const ini = r.fechaInicioEjecucion;
           const fin = r.fechaFinEjecucion || r.fechaEjecutada;
-          if (!ini) return <span style={{ color: 'var(--gray-400)' }}>—</span>;
+          if (!ini) {
+            // No ha iniciado todavía: si tiene programación, mostrar countdown
+            const dias = daysFromToday(r.fechaProgramada);
+            if (dias === null) return <span style={{ color: 'var(--gray-400)' }}>—</span>;
+            if (dias > 0) return (
+              <span style={{
+                background: '#f3f4f6', color: '#6b7280',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                Inicia en {dias}d
+              </span>
+            );
+            if (dias === 0) return (
+              <span style={{
+                background: '#fed7aa', color: '#9a3412',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                📅 Inicia hoy
+              </span>
+            );
+            return (
+              <span style={{
+                background: '#fee2e2', color: '#991b1b',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>
+                🔴 Atrasado {-dias}d
+              </span>
+            );
+          }
           if (ini && fin) {
             const d = daysBetween(ini, fin);
             return (
               <span style={{
-                background: '#dcfce7', color: '#166534', padding: '3px 8px',
-                borderRadius: 10, fontSize: 11, fontWeight: 700,
+                background: '#dcfce7', color: '#166534',
+                padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
               }}>
-                ✓ {d}d
+                ✓ {d}d en sitio
               </span>
             );
           }
@@ -185,10 +235,10 @@ export default function Mantenimiento() {
           const lleva = d !== null ? Math.max(0, -d) : 0;
           return (
             <span style={{
-              background: '#fef3c7', color: '#92400e', padding: '3px 8px',
-              borderRadius: 10, fontSize: 11, fontWeight: 700,
+              background: '#fef3c7', color: '#92400e',
+              padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
             }}>
-              ⏱ Lleva {lleva}d
+              ⏱ Lleva {lleva}d en sitio
             </span>
           );
         },
@@ -378,10 +428,36 @@ export default function Mantenimiento() {
             )}
           </FormRow>
 
-          <FormRow label="📅 Fecha programada">
+          <FormRow label="📅 Inicio programado">
             <input type="date" value={form.fechaProgramada?.slice(0, 10) || ''}
               onChange={(e) => setForm({ ...form, fechaProgramada: e.target.value })} />
           </FormRow>
+          <FormRow label="🏁 Fin programado">
+            <input type="date" value={form.fechaFinProgramada?.slice(0, 10) || ''}
+              onChange={(e) => setForm({ ...form, fechaFinProgramada: e.target.value })} />
+          </FormRow>
+
+          {/* Indicador en vivo de duración programada */}
+          {(form.fechaProgramada && form.fechaFinProgramada) && (
+            <FormRow label="" full>
+              {(() => {
+                const d = daysBetween(form.fechaProgramada, form.fechaFinProgramada);
+                if (d === null) return null;
+                const cls = d < 0 ? '#dc2626' : '#1e40af';
+                const bg = d < 0 ? '#fee2e2' : '#dbeafe';
+                return (
+                  <div style={{
+                    background: bg, color: cls, padding: 8, borderRadius: 6,
+                    fontSize: 12, fontWeight: 600,
+                  }}>
+                    {d < 0 ? '⚠️ Fecha fin antes que inicio — corrige las fechas' :
+                     d === 0 ? '📅 Mantenimiento de 1 día (mismo día)' :
+                     `📅 Duración programada: ${d}d (entre ${fmtDate(form.fechaProgramada)} y ${fmtDate(form.fechaFinProgramada)})`}
+                  </div>
+                );
+              })()}
+            </FormRow>
+          )}
           <FormRow label="▶ Inicio de ejecución">
             <input type="date" value={form.fechaInicioEjecucion?.slice(0, 10) || ''}
               onChange={(e) => {

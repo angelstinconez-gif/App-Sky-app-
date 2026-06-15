@@ -88,6 +88,10 @@ def register_seed_cli(app):
                 "mantenimientos", "fecha_fin_ejecucion",
                 "ALTER TABLE mantenimientos ADD COLUMN fecha_fin_ejecucion DATE"
             ))
+            _try("mantenimientos.fecha_fin_programada", lambda: _add_col(
+                "mantenimientos", "fecha_fin_programada",
+                "ALTER TABLE mantenimientos ADD COLUMN fecha_fin_programada DATE"
+            ))
             _try("mantenimientos.duracion_horas", lambda: _add_col(
                 "mantenimientos", "duracion_horas",
                 "ALTER TABLE mantenimientos ADD COLUMN duracion_horas FLOAT"

@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
+import GlobalSearch from './GlobalSearch';
 
 const TITLES = {
   '/dashboard':     { title: 'Dashboard',     sub: 'Resumen general del sistema' },
@@ -28,11 +29,19 @@ export default function Topbar({ onMenu, actions }) {
   const info = TITLES[pathname] || { title: 'Centro de Incidencias', sub: '' };
 
   return (
-    <header className="topbar">
+    <header className="topbar" style={{ gap: 12 }}>
       <button className="menu-toggle" onClick={onMenu}>☰</button>
-      <span className="page-title">{info.title}</span>
-      <span className="page-sub">{info.sub}</span>
-      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span className="page-title" style={{ lineHeight: 1.1 }}>{info.title}</span>
+        {info.sub && <span className="page-sub" style={{ fontSize: 10, color: 'var(--gray-400)' }}>{info.sub}</span>}
+      </div>
+
+      {/* Buscador global en el centro */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', maxWidth: 600 }}>
+        <GlobalSearch />
+      </div>
+
+      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
         {actions}
         <NotificationBell />
       </div>

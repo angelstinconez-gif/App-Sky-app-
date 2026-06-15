@@ -35,6 +35,7 @@ def _apply(m: Mantenimiento, data: dict):
     m.code = parse_str(data.get("code"))
     m.tipo = parse_str(data.get("tipo"))
     m.fecha_programada = parse_date(data.get("fechaProgramada"))
+    m.fecha_fin_programada = parse_date(data.get("fechaFinProgramada"))
     m.fecha_ejecutada = parse_date(data.get("fechaEjecutada"))
     m.fecha_inicio_ejecucion = parse_date(data.get("fechaInicioEjecucion"))
     m.fecha_fin_ejecucion = parse_date(data.get("fechaFinEjecucion"))
