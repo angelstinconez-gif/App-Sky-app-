@@ -317,6 +317,13 @@ def register_seed_cli(app):
                         if p.get("cuadrilla") and not existing.cuadrilla: existing.cuadrilla = p["cuadrilla"]
                         updated_p += 1
                     else:
+                        # Derivar tipo de póliza desde el código si no viene definido
+                        tipo_pol = p.get("poliza")
+                        code_up = (p.get("code") or "").upper()
+                        if not tipo_pol:
+                            if "-FV" in code_up: tipo_pol = "PV"
+                            elif "-HB" in code_up: tipo_pol = "Híbrido"
+                            elif "-BT" in code_up: tipo_pol = "BESS"
                         db.session.add(Poliza(
                             item=p.get("item") if isinstance(p.get("item"), (int, float)) else None,
                             grupo=p.get("grupo"), code=p.get("code"),
@@ -327,7 +334,7 @@ def register_seed_cli(app):
                             sys_start=parse_date(p.get("sysStart")),
                             pol_start=parse_date(p.get("polStart")),
                             pol_end=parse_date(p.get("polEnd")),
-                            status=p.get("status"), poliza=p.get("poliza"),
+                            status=p.get("status"), poliza=tipo_pol,
                             zona=p.get("zona"), cuadrilla=p.get("cuadrilla"),
                         ))
                         created_p += 1
@@ -513,20 +520,10 @@ def register_seed_cli(app):
             total += len(to_del)
 
             # ── Tickets: por (title, site, open_date) ──
-            seen, to_del = set(), []
-            for t in Ticket.query.order_by(Ticket.id.asc()).all():
-                k = (_norm(t.title), _norm(t.site), t.open_date)
-                if k in seen:
-                    to_del.append(t)
-                else:
-                    seen.add(k)
-            for t in to_del:
-                db.session.delete(t)
-            click.echo(f"  Tickets: -{len(to_del)}")
-            total += len(to_del)
 
             # ── Garantías: por (project, ticket, error) ──
             seen, to_del = set(), []
+            # ── Garantías: por (project, ticket, error) ──
             for g in Garantia.query.order_by(Garantia.id.asc()).all():
                 k = (_norm(g.project), _norm(g.ticket), _norm(g.error))
                 if k in seen:

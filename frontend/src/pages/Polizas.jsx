@@ -30,6 +30,33 @@ function diasBadge(d) {
 export default function Polizas() {
   const { hasRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
+  const [classifying, setClassifying] = useState(false);
+
+  const onAutoClasificar = async () => {
+    if (!confirm(
+      'Va a recorrer TODAS las pólizas y aplicar las reglas:\n\n' +
+      '· Código con -FV → Tipo PV\n' +
+      '· Código con -HB → Tipo Híbrido\n' +
+      '· Código con -BT → Tipo BESS\n\n' +
+      'Las que ya están bien clasificadas no se tocan.\n¿Continuar?'
+    )) return;
+    setClassifying(true);
+    try {
+      const r = await polizasApi.autoClasificar({ sobrescribir: true });
+      alert(
+        `✓ ${r.totalPolizas} pólizas analizadas\n\n` +
+        `· ${r.cambios} actualizadas con tipo correcto\n` +
+        `· ${r.sinCambio} ya estaban correctas\n` +
+        `· ${r.sinCodigo} sin código (no aplica regla)\n\n` +
+        `Las plantas PV ya aparecen en Revisión diaria SFV.`
+      );
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Error al clasificar');
+    } finally {
+      setClassifying(false);
+    }
+  };
 
   const extra = hasRole('admin') ? (
     <>
@@ -37,6 +64,14 @@ export default function Polizas() {
          title="Descarga la plantilla con columnas y ejemplo">
         📄 Plantilla
       </a>
+      <button className="btn btn-sm" onClick={onAutoClasificar} disabled={classifying}
+        title="Aplica tipo PV/BESS/Híbrido según el código del proyecto"
+        style={{
+          background: '#dbeafe', color: '#1e40af', borderColor: '#bae6fd',
+          fontWeight: 600,
+        }}>
+        {classifying ? <span className="spinner" /> : '⚡ Auto-clasificar PV/BESS/Híbrido'}
+      </button>
       <ImportButton uploader={importarApi.polizas} onDone={() => setReloadKey((k) => k + 1)}
         label="📥 Importar pólizas" />
     </>
@@ -50,7 +85,12 @@ export default function Polizas() {
       writeRoles={['admin']}
       deleteRoles={['admin']}
       extraActions={extra}
-      helpText="Base maestra de proyectos. Incluye fechas de inicio y fin de póliza/garantía. Sólo el administrador puede crear o modificar pólizas; el resto de roles tiene acceso de consulta."
+      helpText={
+        'Base maestra de proyectos. Reglas automáticas por código: ' +
+        '-FV → PV · -HB → Híbrido · -BT → BESS. ' +
+        'Usa "Auto-clasificar" para aplicar las reglas masivamente. ' +
+        'Las plantas marcadas como PV o Híbrido aparecen automáticamente en Revisión diaria SFV.'
+      }
       filters={[{ key: 'status', label: 'estados', options: ['Vigente', 'Por vencer', 'Vencida'] }]}
       columns={[
         { key: 'item', label: '#' },
@@ -58,7 +98,26 @@ export default function Polizas() {
         { key: 'project', label: 'Proyecto' },
         { key: 'code', label: 'Código' },
         { key: 'platform', label: 'Plataforma' },
-        { key: 'poliza', label: 'Tipo' },
+        {
+          key: 'poliza', label: 'Tipo',
+          render: (r) => {
+            const t = (r.poliza || '').trim();
+            const styles = {
+              'PV':       { bg: '#dbeafe', fg: '#1e40af' },
+              'BESS':     { bg: '#fef3c7', fg: '#92400e' },
+              'Híbrido':  { bg: '#e9d5ff', fg: '#6b21a8' },
+              'Hibrido':  { bg: '#e9d5ff', fg: '#6b21a8' },
+            };
+            const s = styles[t] || { bg: '#f3f4f6', fg: '#6b7280' };
+            if (!t) return <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>sin tipo</span>;
+            return (
+              <span style={{
+                background: s.bg, color: s.fg,
+                padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>{t}</span>
+            );
+          },
+        },
         { key: 'sysStart', label: 'Inicio sistema', render: (r) => fmtDate(r.sysStart) },
         { key: 'polStart', label: 'Inicio póliza', render: (r) => fmtDate(r.polStart) },
         { key: 'polEnd', label: 'Fin póliza', render: (r) => fmtDate(r.polEnd) },

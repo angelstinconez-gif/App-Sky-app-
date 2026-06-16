@@ -12,6 +12,111 @@ from app.utils.parse import parse_date, parse_int, parse_str
 bp = Blueprint("polizas", __name__)
 
 
+def _tipo_desde_codigo(code):
+    """Deriva el tipo de póliza desde el código.
+    - -FV-  → PV
+    - -BT-  → BESS
+    - -HB-  → Híbrido
+    Devuelve None si el código no aplica.
+    """
+    if not code:
+        return None
+    c = code.upper()
+    if "-FV" in c:
+        return "PV"
+    if "-HB" in c:
+        return "Híbrido"
+    if "-BT" in c:
+        return "BESS"
+    return None
+
+
+@bp.route("/auto-clasificar", methods=["POST"])
+@jwt_required()
+@role_required("admin")
+def auto_clasificar():
+    """Recorre TODAS las pólizas y aplica el tipo según el código.
+
+    Reglas:
+      -FV → PV
+      -BT → BESS
+      -HB → Híbrido
+
+    Sólo modifica pólizas cuyo tipo actual difiera. Devuelve resumen.
+    """
+    data = request.get_json(silent=True) or {}
+    sobrescribir = bool(data.get("sobrescribir", True))  # por default sí sobrescribe
+    only_empty = bool(data.get("soloVacios", False))
+
+    polizas = Poliza.query.all()
+    cambios = []
+    sin_cambio = 0
+    sin_codigo = 0
+
+    for p in polizas:
+        nuevo = _tipo_desde_codigo(p.code)
+        if not nuevo:
+            sin_codigo += 1
+            continue
+        actual = (p.poliza or "").strip()
+        # Decidir si actualizar
+        if only_empty and actual:
+            sin_cambio += 1
+            continue
+        if not sobrescribir and actual:
+            sin_cambio += 1
+            continue
+        # Compara case-insensitive ignorando acentos básicos
+        if actual.lower() == nuevo.lower():
+            sin_cambio += 1
+            continue
+        cambios.append({
+            "id": p.id, "project": p.project, "code": p.code,
+            "antes": actual or None, "nuevo": nuevo,
+        })
+        p.poliza = nuevo
+
+    db.session.commit()
+    return jsonify(
+        ok=True,
+        totalPolizas=len(polizas),
+        cambios=len(cambios),
+        sinCambio=sin_cambio,
+        sinCodigo=sin_codigo,
+        detalle=cambios[:40],   # primeros 40 para no inflar
+    )
+
+
+@bp.route("/marcar-pv", methods=["POST"])
+@jwt_required()
+@role_required("admin")
+def marcar_pv():
+    """Marca como tipo PV un lote de pólizas específicas (por id o por nombre).
+
+    Body: { polizaIds: [...] } o { projects: ['Nombre A', ...] }
+    """
+    data = request.get_json(silent=True) or {}
+    poliza_ids = data.get("polizaIds") or []
+    projects = data.get("projects") or []
+    cambios = 0
+    for pid in poliza_ids:
+        try:
+            p = db.session.get(Poliza, int(pid))
+            if p:
+                p.poliza = "PV"
+                cambios += 1
+        except Exception:
+            pass
+    for name in projects:
+        if not name: continue
+        pols = Poliza.query.filter(Poliza.project.ilike(f"%{name}%")).all()
+        for p in pols:
+            p.poliza = "PV"
+            cambios += 1
+    db.session.commit()
+    return jsonify(ok=True, cambios=cambios)
+
+
 @bp.route("/zonas", methods=["GET"])
 @jwt_required()
 def list_zonas():

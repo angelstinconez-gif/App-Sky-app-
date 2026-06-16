@@ -40,6 +40,8 @@ export const polizasApi = {
   ...crud('/polizas'),
   zonas: () => api.get('/polizas/zonas').then((r) => r.data),
   plataformas: () => api.get('/polizas/plataformas').then((r) => r.data),
+  autoClasificar: (data) => api.post('/polizas/auto-clasificar', data || {}).then((r) => r.data),
+  marcarPV: (data) => api.post('/polizas/marcar-pv', data).then((r) => r.data),
 };
 export const directorioApi = crud('/directorio');
 export const cuadrillasApi = crud('/cuadrillas');
