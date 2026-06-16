@@ -10,7 +10,6 @@ from app.utils.parse import parse_str
 
 bp = Blueprint("users", __name__)
 
-# Roles válidos del sistema
 VALID_ROLES = ("admin", "operator", "mantenimiento", "tecnico", "viewer")
 
 
@@ -48,6 +47,7 @@ def create_user():
         role=role,
         initials=parse_str(data.get("initials")),
         active=bool(data.get("active", True)),
+        ai_enabled=bool(data.get("aiEnabled", False)),
     )
     user.set_password(password)
     db.session.add(user)
@@ -78,6 +78,8 @@ def update_user(user_id):
         user.role = data["role"]
     if "active" in data:
         user.active = bool(data["active"])
+    if "aiEnabled" in data:
+        user.ai_enabled = bool(data["aiEnabled"])
     if "initials" in data:
         user.initials = parse_str(data["initials"])
     if data.get("password"):

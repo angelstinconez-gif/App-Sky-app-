@@ -56,15 +56,10 @@ def _es_pv_vigente(p):
 
 
 def _rev_for_day(rev_list, target_date):
-    """De una lista de revisiones de un proyecto, devuelve la del día indicado,
-    haciendo fallback por (year, week) si la columna `fecha` está NULL."""
-    iso = target_date.isocalendar()
-    target_yw = (iso[0], iso[1])
+    """De una lista de revisiones de un proyecto, devuelve SOLO la del día exacto.
+    Cada día es independiente — sin fallback semanal."""
     for r in rev_list:
         if r.fecha and r.fecha == target_date:
-            return r
-        # fallback: revisiones viejas sin `fecha` se identifican por (year, week)
-        if not r.fecha and r.year == target_yw[0] and r.week == target_yw[1]:
             return r
     return None
 
@@ -369,15 +364,9 @@ def upsert():
     iso = fecha.isocalendar()
     claims = get_jwt() or {}
 
-    # Buscar revisión existente del mismo proyecto y día
-    existing = None
-    # primero por fecha exacta
+    # Buscar revisión existente del MISMO DÍA EXACTO (sin fallback semanal)
     existing = (RevisionSemanal.query
                 .filter_by(project=project, fecha=fecha).first())
-    if not existing:
-        # fallback legado por year+week
-        existing = (RevisionSemanal.query
-                    .filter_by(project=project, year=iso[0], week=iso[1], fecha=None).first())
 
     target = existing or RevisionSemanal(project=project)
     target.fecha = fecha

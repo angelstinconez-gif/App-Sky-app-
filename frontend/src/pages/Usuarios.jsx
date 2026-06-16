@@ -8,7 +8,7 @@ import { fmtDateTime, downloadXLSX } from '../utils/format';
 
 const ROLES = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
 
-const empty = { name: '', email: '', role: 'operator', initials: '', active: true, password: '', passwordConfirm: '' };
+const empty = { name: '', email: '', role: 'operator', initials: '', active: true, aiEnabled: false, password: '', passwordConfirm: '' };
 
 export default function Usuarios() {
   const { hasRole } = useAuth();
@@ -112,6 +112,27 @@ export default function Usuarios() {
           }} />
       ) : (r.active ? '✓' : '—'),
     },
+    {
+      key: 'aiEnabled', label: '🤖 IA',
+      render: (r) => {
+        const isAdmin = (r.role || '').toLowerCase() === 'admin';
+        if (isAdmin) {
+          return <span title="Los administradores siempre tienen acceso al asistente IA"
+            style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>✓ admin</span>;
+        }
+        return canWrite ? (
+          <input type="checkbox" checked={!!r.aiEnabled}
+            title="Permitir a este usuario usar el asistente IA (SkyBot)"
+            onChange={async (e) => {
+              try {
+                await usersApi.update(r.id, { aiEnabled: e.target.checked });
+                toast(e.target.checked ? '✓ IA habilitada' : 'IA deshabilitada');
+                load();
+              } catch (err) { toast('Error', 'error'); }
+            }} />
+        ) : (r.aiEnabled ? '✓' : '—');
+      },
+    },
     { key: 'last_login', label: 'Último ingreso', render: (r) => fmtDateTime(r.last_login) },
     {
       key: '_actions', label: 'Acciones', sortable: false,
@@ -203,6 +224,21 @@ export default function Usuarios() {
                 onChange={(e) => setForm({ ...form, active: e.target.checked })} />
               Cuenta activa
             </label>
+          </Row>
+
+          <Row label="🤖 Asistente IA">
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+              <input type="checkbox"
+                checked={(form.role || '').toLowerCase() === 'admin' || !!form.aiEnabled}
+                disabled={(form.role || '').toLowerCase() === 'admin'}
+                onChange={(e) => setForm({ ...form, aiEnabled: e.target.checked })} />
+              {(form.role || '').toLowerCase() === 'admin'
+                ? 'Habilitado automáticamente (rol admin)'
+                : 'Permitir usar SkyBot'}
+            </label>
+            <small style={{ color: 'var(--gray-500)', fontSize: 11 }}>
+              Por defecto solo los admin pueden usar el asistente IA. Marca para habilitar este usuario.
+            </small>
           </Row>
         </div>
       </Modal>

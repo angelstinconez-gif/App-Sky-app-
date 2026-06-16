@@ -199,6 +199,32 @@ def register_seed_cli(app):
             from app.models.ai_chat import AIConversation as _AIConv
             _try("crear ai_conversations", lambda: _create_if_missing(_AIConv))
 
+            # ── Backfill: rellenar `fecha` en revisiones viejas (legacy semanal) ──
+            def _backfill_revisiones_fecha():
+                from datetime import date as _date, timedelta
+                from app.models.revision_semanal import RevisionSemanal as _RS2
+                viejas = _RS2.query.filter(_RS2.fecha.is_(None)).all()
+                rellenadas = 0
+                for r in viejas:
+                    if r.year and r.week:
+                        try:
+                            jan4 = _date(r.year, 1, 4)
+                            week1_monday = jan4 - timedelta(days=jan4.isoweekday() - 1)
+                            r.fecha = week1_monday + timedelta(weeks=r.week - 1)
+                            rellenadas += 1
+                        except Exception:
+                            pass
+                if rellenadas:
+                    db.session.commit()
+                    click.echo(f"  📅 Backfill revisiones: {rellenadas} con fecha=lunes ISO")
+            _try("backfill revisiones fecha", _backfill_revisiones_fecha)
+
+            # ── User.ai_enabled: permiso individual para usar el asistente IA ──
+            _try("users.ai_enabled", lambda: _add_col(
+                "users", "ai_enabled",
+                "ALTER TABLE users ADD COLUMN ai_enabled BOOLEAN DEFAULT FALSE"
+            ))
+
             click.echo("✅ upgrade-schema completado.")
 
     @app.cli.command("create-admin")
@@ -495,10 +521,10 @@ def register_seed_cli(app):
             click.echo(f"  Pólizas: -{len(to_del)}")
             total += len(to_del)
 
-            # ── Directorio: por (project, maint_contact) ──
+            # ── Directorio: por (name, email, phone) ──
             seen, to_del = set(), []
             for d in Directorio.query.order_by(Directorio.id.asc()).all():
-                k = (_norm(d.project), _norm(d.maint_contact))
+                k = (_norm(d.name), _norm(getattr(d, 'email', None)), _norm(getattr(d, 'phone', None)))
                 if k in seen:
                     to_del.append(d)
                 else:
@@ -508,24 +534,8 @@ def register_seed_cli(app):
             click.echo(f"  Directorio: -{len(to_del)}")
             total += len(to_del)
 
-            # ── Incidencias: por (site, code, err_code, inc_date) ──
-            seen, to_del = set(), []
-            for i in Incidencia.query.order_by(Incidencia.id.asc()).all():
-                k = (_norm(i.site), _norm(i.code), _norm(i.err_code), i.inc_date)
-                if k in seen:
-                    to_del.append(i)
-                else:
-                    seen.add(k)
-            for i in to_del:
-                db.session.delete(i)
-            click.echo(f"  Incidencias: -{len(to_del)}")
-            total += len(to_del)
-
-            # ── Tickets: por (title, site, open_date) ──
-
             # ── Garantías: por (project, ticket, error) ──
             seen, to_del = set(), []
-            # ── Garantías: por (project, ticket, error) ──
             for g in Garantia.query.order_by(Garantia.id.asc()).all():
                 k = (_norm(g.project), _norm(g.ticket), _norm(g.error))
                 if k in seen:

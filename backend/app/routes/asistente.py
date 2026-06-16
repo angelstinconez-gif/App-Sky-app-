@@ -42,11 +42,25 @@ def _provider():
 
 
 def _api_key():
-    return os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY") or ""
+    # Strip whitespace/newlines — Render a veces los inyecta al pegar
+    raw = (
+        os.environ.get("AI_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("XAI_API_KEY")
+        or os.environ.get("GROK_API_KEY")
+        or ""
+    )
+    return raw.strip().strip('"').strip("'")
 
 
 def _model_name():
-    return os.environ.get("AI_MODEL") or "gemini-2.5-flash"
+    default = {
+        "gemini": "gemini-2.5-flash",
+        "grok": "grok-3-mini",
+        "openai": "gpt-4o-mini",
+        "anthropic": "claude-3-5-haiku-20241022",
+    }.get(_provider(), "gemini-2.5-flash")
+    return os.environ.get("AI_MODEL") or default
 
 
 # ── Conversión de schema OpenAI → Gemini ────────────────────────────
@@ -118,7 +132,20 @@ def _gemini_call(messages, system_prompt):
             err = r.json().get("error", {}).get("message", r.text)
         except Exception:
             err = r.text
-        return {"error": f"Gemini respondió {r.status_code}: {err}"}
+        # Diagnóstico extra para errores comunes
+        key_preview = f"{key[:6]}...{key[-4:]} ({len(key)} chars)" if key else "vacía"
+        hint = ""
+        if r.status_code == 400 and "API key" in str(err):
+            hint = (
+                f"\n\n🔍 La clave actual es: {key_preview}. "
+                "Verifica que sea correcta en https://aistudio.google.com/apikey "
+                "y que esté pegada SIN espacios en Render."
+            )
+        elif r.status_code == 429:
+            hint = "\n\n⏱️ Alcanzaste el límite de 1500 mensajes/día del free tier."
+        elif r.status_code == 403:
+            hint = "\n\n🔒 La clave existe pero no tiene permiso para este modelo o proyecto."
+        return {"error": f"Gemini respondió {r.status_code}: {err}{hint}"}
 
     data = r.json()
     candidates = data.get("candidates", [])
@@ -139,6 +166,127 @@ def _gemini_call(messages, system_prompt):
         "text": "\n".join(text_chunks).strip(),
         "tool_calls": tool_calls,
         "usage": data.get("usageMetadata", {}),
+    }
+
+
+# ── Llamada a Grok (xAI) — compatible con formato OpenAI ────────────
+
+def _build_openai_tools():
+    """Convierte el schema de Gemini al formato OpenAI/Grok."""
+    return [
+        {"type": "function", "function": t}
+        for t in TOOLS_SCHEMA_GEMINI
+    ]
+
+
+def _grok_call(messages, system_prompt):
+    """Llama a Grok (xAI) con function calling.
+    La API es compatible con OpenAI, así que usamos su formato.
+    """
+    try:
+        import requests
+    except ImportError:
+        return {"error": "Falta 'requests'. Instala con: pip install requests"}
+
+    key = _api_key()
+    if not key:
+        return {
+            "error": "Falta AI_API_KEY. Obtén una en https://console.x.ai/ "
+            "y configúrala en Render."
+        }
+
+    # Convertir mensajes internos al formato OpenAI
+    oai_messages = [{"role": "system", "content": system_prompt}]
+    for m in messages:
+        if m["role"] == "user":
+            oai_messages.append({"role": "user", "content": m["content"]})
+        elif m["role"] == "assistant":
+            msg = {"role": "assistant", "content": m.get("content") or ""}
+            if m.get("tool_calls"):
+                msg["tool_calls"] = [
+                    {
+                        "id": tc.get("id") or f"call_{i}",
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": json.dumps(tc.get("args") or {}, ensure_ascii=False),
+                        },
+                    }
+                    for i, tc in enumerate(m["tool_calls"])
+                ]
+            oai_messages.append(msg)
+        elif m["role"] == "tool":
+            oai_messages.append({
+                "role": "tool",
+                "tool_call_id": m.get("tool_call_id") or f"call_{m.get('name', 'x')}",
+                "name": m.get("name"),
+                "content": json.dumps(m["content"], ensure_ascii=False, default=str),
+            })
+
+    payload = {
+        "model": _model_name(),
+        "messages": oai_messages,
+        "tools": _build_openai_tools(),
+        "tool_choice": "auto",
+        "temperature": 0.3,
+        "max_tokens": 1500,
+    }
+
+    try:
+        r = requests.post(
+            "https://api.x.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=60,
+        )
+    except Exception as e:
+        return {"error": f"Error de red al contactar Grok: {e}"}
+
+    if r.status_code != 200:
+        try:
+            err_data = r.json()
+            err = err_data.get("error", {}).get("message") or err_data.get("message") or r.text
+        except Exception:
+            err = r.text
+        key_preview = f"{key[:8]}...{key[-4:]} ({len(key)} chars)" if key else "vacía"
+        hint = ""
+        if r.status_code == 401:
+            hint = (
+                f"\n\n🔍 La clave actual es: {key_preview}. "
+                "Verifícala en https://console.x.ai/ — debe empezar con 'xai-'."
+            )
+        elif r.status_code == 429:
+            hint = "\n\n⏱️ Alcanzaste el límite de Grok. Espera unos minutos."
+        return {"error": f"Grok respondió {r.status_code}: {err}{hint}"}
+
+    data = r.json()
+    choices = data.get("choices", [])
+    if not choices:
+        return {"error": "Grok no devolvió respuesta", "raw": data}
+
+    msg = choices[0].get("message", {})
+    text = msg.get("content") or ""
+    raw_tcs = msg.get("tool_calls") or []
+    tool_calls = []
+    for tc in raw_tcs:
+        fn = tc.get("function", {})
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except (ValueError, TypeError):
+            args = {}
+        tool_calls.append({
+            "id": tc.get("id"),
+            "name": fn.get("name"),
+            "args": args,
+        })
+
+    return {
+        "text": text.strip() if text else "",
+        "tool_calls": tool_calls,
+        "usage": data.get("usage", {}),
     }
 
 
@@ -165,6 +313,14 @@ def chat():
     user = db.session.get(User, user_id)
     if not user:
         return jsonify(error="user_not_found"), 404
+
+    # Solo admin (siempre) o usuarios con ai_enabled=True
+    if not user.can_use_ai:
+        return jsonify(
+            error="ai_disabled",
+            message="No tienes permiso para usar el asistente IA. "
+                    "Pídele a un administrador que te habilite en Usuarios."
+        ), 403
 
     role = (user.role or "viewer").lower()
 
@@ -201,10 +357,13 @@ def chat():
     MAX_TOOL_ROUNDS = 4
 
     for round_idx in range(MAX_TOOL_ROUNDS):
-        if _provider() == "gemini":
+        prov = _provider()
+        if prov == "gemini":
             resp = _gemini_call(history, system_prompt)
+        elif prov in ("grok", "xai"):
+            resp = _grok_call(history, system_prompt)
         else:
-            resp = {"error": f"Provider '{_provider()}' no implementado todavía."}
+            resp = {"error": f"Provider '{prov}' no implementado. Usa AI_PROVIDER=gemini o grok."}
 
         if "error" in resp:
             final_text = f"⚠️ {resp['error']}"
@@ -320,15 +479,25 @@ def bitacora_global():
 @bp.route("/status", methods=["GET"])
 @jwt_required()
 def status():
-    """Indica si el asistente está disponible (API key configurada)."""
+    """Indica si el asistente está disponible (API key configurada + usuario con permiso)."""
     has_key = bool(_api_key())
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    allowed = bool(user and user.can_use_ai)
+
+    if not allowed:
+        msg = "No tienes permiso para usar el asistente. Pídele a un admin que te habilite."
+    elif not has_key:
+        msg = "Falta configurar AI_API_KEY en el servidor"
+    else:
+        msg = "Asistente listo"
+
     return jsonify(
-        available=has_key,
+        available=(has_key and allowed),
+        allowed=allowed,
+        configured=has_key,
         provider=_provider(),
         model=_model_name(),
         toolsCount=len(TOOLS_REGISTRY),
-        message=(
-            "Asistente listo" if has_key
-            else "Falta configurar AI_API_KEY en el servidor"
-        ),
+        message=msg,
     )

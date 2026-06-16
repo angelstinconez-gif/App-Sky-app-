@@ -24,8 +24,11 @@ export default function AIAssistant() {
 
   // Check status al montar
   useEffect(() => {
-    asistenteApi.status().then(setStatus).catch(() => setStatus({ available: false }));
+    asistenteApi.status().then(setStatus).catch(() => setStatus({ available: false, allowed: false }));
   }, []);
+
+  // Si el usuario NO tiene permiso, no mostramos NADA (ni el botón flotante)
+  if (status && status.allowed === false) return null;
 
   // Auto-scroll al final
   useEffect(() => {
