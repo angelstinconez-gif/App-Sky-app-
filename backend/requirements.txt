@@ -15,3 +15,5 @@ Werkzeug==3.0.6
 twilio==9.3.7
 pywebpush==2.0.0
 cryptography==43.0.1
+# Asistente IA (Google Gemini)
+requests==2.32.3

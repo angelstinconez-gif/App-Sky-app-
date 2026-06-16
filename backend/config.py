@@ -35,3 +35,9 @@ class Config:
 
     JSON_SORT_KEYS = False
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB para subidas Excel
+
+    # ── Asistente IA (Google Gemini gratis por defecto) ──
+    # Obtén tu API key gratis en https://aistudio.google.com/apikey
+    AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini")
+    AI_API_KEY = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+    AI_MODEL = os.environ.get("AI_MODEL", "gemini-2.5-flash")

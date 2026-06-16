@@ -114,6 +114,16 @@ export const assigneesApi = {
   list: () => api.get('/assignees').then((r) => r.data),
 };
 
+export const asistenteApi = {
+  status: () => api.get('/asistente/status').then((r) => r.data),
+  chat: (message, conversationId = null) =>
+    api.post('/asistente/chat', { message, conversationId }).then((r) => r.data),
+  listarConversaciones: () => api.get('/asistente/conversaciones').then((r) => r.data),
+  obtenerConversacion: (id) => api.get(`/asistente/conversaciones/${id}`).then((r) => r.data),
+  eliminarConversacion: (id) => api.delete(`/asistente/conversaciones/${id}`).then((r) => r.data),
+  bitacora: () => api.get('/asistente/bitacora').then((r) => r.data),
+};
+
 export const notificationsApi = {
   vapidKey: () => api.get('/notifications/vapid-public-key').then((r) => r.data.publicKey),
   subscribePush: (subscription) =>

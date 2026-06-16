@@ -29,6 +29,7 @@ import Analisis from './pages/Analisis';
 import TicketsPorProyecto from './pages/TicketsPorProyecto';
 import RevisionSemanal from './pages/RevisionSemanal';
 import NotificationToast from './components/NotificationToast';
+import AIAssistant from './components/AIAssistant';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -40,6 +41,7 @@ function Shell({ children }) {
         <NotificationToast />
         <div className="content">{children}</div>
       </div>
+      <AIAssistant />
     </div>
   );
 }

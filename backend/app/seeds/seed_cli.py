@@ -196,6 +196,8 @@ def register_seed_cli(app):
             _try("crear revisiones_semanales", lambda: _create_if_missing(_RS))
             _try("crear notification_subscriptions", lambda: _create_if_missing(NotificationSubscription))
             _try("crear notification_log", lambda: _create_if_missing(NotificationLog))
+            from app.models.ai_chat import AIConversation as _AIConv
+            _try("crear ai_conversations", lambda: _create_if_missing(_AIConv))
 
             click.echo("✅ upgrade-schema completado.")
 
