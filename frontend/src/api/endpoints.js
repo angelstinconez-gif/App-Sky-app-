@@ -74,7 +74,7 @@ export const revsemApi = {
   plantas: (params) => api.get('/revisiones-semanales/plantas', { params }).then((r) => r.data),
   historial: (polizaId) => api.get(`/revisiones-semanales/historial/${polizaId}`).then((r) => r.data),
   upsert: (data) => api.post('/revisiones-semanales', data).then((r) => r.data),
-  heatmap: (weeks = 8) => api.get('/revisiones-semanales/heatmap', { params: { weeks } }).then((r) => r.data),
+  heatmap: (days = 14) => api.get('/revisiones-semanales/heatmap', { params: { days } }).then((r) => r.data),
   bulk: (data) => api.post('/revisiones-semanales/bulk', data).then((r) => r.data),
 };
 export const eventosApi = crud('/eventos');

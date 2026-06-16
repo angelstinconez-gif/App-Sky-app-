@@ -23,7 +23,7 @@ const TITLES = {
   '/lecciones':     { title: 'Lecciones',     sub: 'Base de conocimiento' },
   '/analisis':      { title: 'Análisis PV',   sub: 'Cumplimiento mensual' },
   '/tickets-por-proyecto': { title: 'Tickets x proyecto', sub: 'Estado por planta' },
-  '/revision-semanal': { title: 'Revisión semanal SFV', sub: 'Checklist por planta PV' },
+  '/revision-semanal': { title: 'Revisión diaria SFV', sub: 'Checklist por planta PV' },
 };
 
 export default function Topbar({ onMenu, actions }) {

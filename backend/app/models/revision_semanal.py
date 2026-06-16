@@ -1,10 +1,14 @@
-"""Revisión semanal de plantas SFV activas (PV en garantía)."""
+"""Revisión diaria de plantas SFV activas (PV en garantía).
+
+Nombre histórico (revision_semanal) por compatibilidad con tablas ya creadas;
+la lógica actual maneja revisiones por DÍA (no semana).
+"""
 from datetime import datetime
 
 from app import db
 
 
-# Estados de la revisión semanal
+# Estados de la revisión
 ESTADOS_REVISION = ["OK", "Sin comunicación", "Falla", "Falta de datos"]
 
 
@@ -17,11 +21,12 @@ class RevisionSemanal(db.Model):
     code = db.Column(db.String(80), index=True)
     poliza_id = db.Column(db.Integer, index=True)
 
-    # Periodo (semana ISO)
-    year = db.Column(db.Integer, nullable=False, index=True)
-    week = db.Column(db.Integer, nullable=False, index=True)
+    # Periodo: DÍA y (legado) semana ISO
+    fecha = db.Column(db.Date, index=True)         # día de la revisión (nuevo, prioritario)
+    year = db.Column(db.Integer, index=True)       # año ISO (compat / legado)
+    week = db.Column(db.Integer, index=True)       # semana ISO (compat / legado)
 
-    # Estado de la revisión
+    # Estado
     estado = db.Column(db.String(40), nullable=False, default="OK", index=True)
     observaciones = db.Column(db.Text)
 
@@ -36,16 +41,28 @@ class RevisionSemanal(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    __table_args__ = (
-        db.UniqueConstraint("project", "year", "week", name="uq_proj_year_week"),
-    )
+    # No usamos UniqueConstraint en (project, fecha) porque registros viejos pueden
+    # tener fecha=NULL. Hacemos la unicidad lógicamente en código.
 
     def to_dict(self):
+        # Día efectivo: prioriza `fecha`, si no, deriva de year/week (lunes ISO) como compat
+        from datetime import date as _date, timedelta
+        dia = self.fecha
+        if not dia and self.year and self.week:
+            try:
+                # Lunes ISO de esa semana
+                jan4 = _date(self.year, 1, 4)
+                jan4_weekday = jan4.isoweekday()
+                week1_monday = jan4 - timedelta(days=jan4_weekday - 1)
+                dia = week1_monday + timedelta(weeks=self.week - 1)
+            except Exception:
+                dia = None
         return {
             "id": self.id,
             "project": self.project,
             "code": self.code,
             "polizaId": self.poliza_id,
+            "fecha": dia.isoformat() if dia else None,
             "year": self.year,
             "week": self.week,
             "estado": self.estado,

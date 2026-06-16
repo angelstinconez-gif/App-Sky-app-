@@ -112,6 +112,10 @@ def register_seed_cli(app):
                 "garantias", "abierto_por_email",
                 "ALTER TABLE garantias ADD COLUMN abierto_por_email VARCHAR(180)"
             ))
+            _try("revisiones_semanales.fecha", lambda: _add_col(
+                "revisiones_semanales", "fecha",
+                "ALTER TABLE revisiones_semanales ADD COLUMN fecha DATE"
+            ))
 
             # Viáticos: columnas nuevas
             for col_name, ddl in [

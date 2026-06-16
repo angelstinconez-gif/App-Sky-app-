@@ -16,22 +16,27 @@ const ESTADOS = [
   { id: 'Falta de datos',    label: 'Falta de datos',    bg: '#dbeafe', fg: '#1e40af', icon: FileQuestion },
 ];
 
-function isoWeekOf(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-  return { year: d.getUTCFullYear(), week };
-}
+const HEAT_COLORS = {
+  'OK': '#16a34a',
+  'Sin comunicación': '#f59e0b',
+  'Falla': '#dc2626',
+  'Falta de datos': '#3b82f6',
+};
 
-function weekStartDate(year, week) {
-  const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
-  const dow = simple.getUTCDay();
-  const start = new Date(simple);
-  if (dow <= 4) start.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
-  else start.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
-  return start;
+function isoFromDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+function todayISO() {
+  return isoFromDate(new Date());
+}
+function addDays(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return isoFromDate(d);
+}
+function diaNombre(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export default function RevisionSemanal() {
@@ -40,31 +45,49 @@ export default function RevisionSemanal() {
   const { hasRole } = useAuth();
   const canEdit = hasRole('admin', 'operator', 'mantenimiento', 'tecnico');
 
-  const today = new Date();
-  const currentISO = isoWeekOf(today);
-  const [year, setYear] = useState(currentISO.year);
-  const [week, setWeek] = useState(currentISO.week);
+  const [fecha, setFecha] = useState(todayISO());
   const [data, setData] = useState({ plantas: [], total: 0, revisadas: 0, pendientes: 0 });
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
-  const [editing, setEditing] = useState(null);   // planta seleccionada
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ estado: 'OK', observaciones: '', generarIncidencia: false });
 
-  // Selección múltiple + bulk save
   const [selected, setSelected] = useState(new Set());
   const [bulkEstado, setBulkEstado] = useState('OK');
   const [savingBulk, setSavingBulk] = useState(false);
 
-  // Heatmap
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [heatmap, setHeatmap] = useState(null);
   const [heatLoading, setHeatLoading] = useState(false);
 
+  const isToday = fecha === todayISO();
+
+  const load = () => {
+    setLoading(true);
+    revsemApi.plantas({ fecha })
+      .then(setData)
+      .catch(() => toast('Error al cargar', 'error'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); setSelected(new Set()); /* eslint-disable-next-line */ }, [fecha]);
+
+  const loadHeatmap = () => {
+    setHeatLoading(true);
+    revsemApi.heatmap(14)
+      .then(setHeatmap)
+      .catch(() => toast('Error al cargar heatmap', 'error'))
+      .finally(() => setHeatLoading(false));
+  };
+  useEffect(() => { if (showHeatmap && !heatmap) loadHeatmap(); /* eslint-disable-next-line */ }, [showHeatmap]);
+
+  const navDay = (delta) => setFecha((f) => addDays(f, delta));
+  const goToday = () => setFecha(todayISO());
+
   const openReporteHTML = async () => {
     try {
       const res = await api.get('/revisiones-semanales/reporte', {
-        params: { year, week }, responseType: 'text',
+        params: { fecha }, responseType: 'text',
       });
       const blob = new Blob([res.data], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
@@ -75,33 +98,6 @@ export default function RevisionSemanal() {
     }
   };
 
-  const loadHeatmap = () => {
-    setHeatLoading(true);
-    revsemApi.heatmap(8)
-      .then(setHeatmap)
-      .catch(() => toast('Error al cargar heatmap', 'error'))
-      .finally(() => setHeatLoading(false));
-  };
-  useEffect(() => { if (showHeatmap && !heatmap) loadHeatmap(); /* eslint-disable-next-line */ }, [showHeatmap]);
-
-  const load = () => {
-    setLoading(true);
-    revsemApi.plantas({ year, week })
-      .then(setData)
-      .catch(() => toast('Error al cargar', 'error'))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); setSelected(new Set()); /* eslint-disable-next-line */ }, [year, week]);
-
-  const navWeek = (delta) => {
-    let w = week + delta;
-    let y = year;
-    if (w < 1) { y--; w = 52; }
-    if (w > 53) { y++; w = 1; }
-    setWeek(w); setYear(y);
-  };
-  const goCurrent = () => { setYear(currentISO.year); setWeek(currentISO.week); };
-
   const onEdit = (p) => {
     setForm({
       estado: p.estado || 'OK',
@@ -110,6 +106,53 @@ export default function RevisionSemanal() {
     });
     setEditing(p);
   };
+
+  const onSave = async () => {
+    if (!editing) return;
+    const noOk = form.estado !== 'OK';
+    let generar = form.generarIncidencia;
+    if (noOk && !generar && !editing.incidenciaId) {
+      generar = confirm(
+        `El estado seleccionado es "${form.estado}".\n\n¿Deseas generar automáticamente una incidencia para dar seguimiento?`
+      );
+    }
+    try {
+      const r = await revsemApi.upsert({
+        project: editing.project,
+        code: editing.code,
+        polizaId: editing.polizaId,
+        fecha,
+        estado: form.estado,
+        observaciones: form.observaciones,
+        generarIncidencia: generar,
+      });
+      if (r.incidenciaCreated) {
+        toast(`✓ Revisión guardada · Incidencia #${r.incidenciaCreated} generada`);
+      } else {
+        toast('Revisión guardada');
+      }
+      setEditing(null);
+      load();
+      if (heatmap) loadHeatmap();
+    } catch (e) {
+      toast(e?.response?.data?.message || 'Error al guardar', 'error');
+    }
+  };
+
+  const filtered = useMemo(() => {
+    let arr = data.plantas || [];
+    if (q.trim()) {
+      const f = q.toLowerCase();
+      arr = arr.filter((p) =>
+        (p.project || '').toLowerCase().includes(f) ||
+        (p.code || '').toLowerCase().includes(f) ||
+        (p.grupo || '').toLowerCase().includes(f));
+    }
+    if (filterEstado) {
+      arr = arr.filter((p) => (filterEstado === '__pendiente' ? !p.estado : p.estado === filterEstado));
+    }
+    return arr;
+  }, [data.plantas, q, filterEstado]);
 
   const toggleSel = (polizaId) => {
     setSelected((prev) => {
@@ -122,7 +165,6 @@ export default function RevisionSemanal() {
   const toggleAllVisible = () => {
     const visibles = filtered.map((p) => p.polizaId);
     if (visibles.every((id) => selected.has(id))) {
-      // si todas las visibles están marcadas, desmarcar
       setSelected((prev) => {
         const next = new Set(prev);
         visibles.forEach((id) => next.delete(id));
@@ -143,12 +185,12 @@ export default function RevisionSemanal() {
         `¿Generar automáticamente una incidencia para cada una?`
       );
     } else {
-      if (!confirm(`Vas a marcar ${selected.size} planta(s) como "OK" para la semana ${week} de ${year}.\n\n¿Continuar?`)) return;
+      if (!confirm(`Vas a marcar ${selected.size} planta(s) como "OK" para el ${fecha}.\n\n¿Continuar?`)) return;
     }
     setSavingBulk(true);
     try {
       const r = await revsemApi.bulk({
-        year, week, estado: bulkEstado,
+        fecha, estado: bulkEstado,
         polizaIds: Array.from(selected),
         generarIncidencias: generar,
       });
@@ -163,57 +205,6 @@ export default function RevisionSemanal() {
       setSavingBulk(false);
     }
   };
-
-  const onSave = async () => {
-    if (!editing) return;
-    const noOk = form.estado !== 'OK';
-    let generar = form.generarIncidencia;
-    // Si no es OK y no ha confirmado, preguntar
-    if (noOk && !generar && !editing.incidenciaId) {
-      generar = confirm(
-        `El estado seleccionado es "${form.estado}".\n\n¿Deseas generar automáticamente una incidencia para dar seguimiento?`
-      );
-    }
-    try {
-      const r = await revsemApi.upsert({
-        project: editing.project,
-        code: editing.code,
-        polizaId: editing.polizaId,
-        year, week,
-        estado: form.estado,
-        observaciones: form.observaciones,
-        generarIncidencia: generar,
-      });
-      if (r.incidenciaCreated) {
-        toast(`✓ Revisión guardada · Incidencia #${r.incidenciaCreated} generada`);
-      } else {
-        toast('Revisión guardada');
-      }
-      setEditing(null);
-      load();
-    } catch (e) {
-      toast(e?.response?.data?.message || 'Error al guardar', 'error');
-    }
-  };
-
-  const filtered = useMemo(() => {
-    let arr = data.plantas || [];
-    if (q.trim()) {
-      const f = q.toLowerCase();
-      arr = arr.filter((p) =>
-        (p.project || '').toLowerCase().includes(f) ||
-        (p.code || '').toLowerCase().includes(f) ||
-        (p.grupo || '').toLowerCase().includes(f));
-    }
-    if (filterEstado) {
-      arr = arr.filter((p) => (filterEstado === '__pendiente'
-        ? !p.estado
-        : p.estado === filterEstado));
-    }
-    return arr;
-  }, [data.plantas, q, filterEstado]);
-
-  const wkStart = weekStartDate(year, week);
 
   const columns = useMemo(() => [
     canEdit && {
@@ -238,17 +229,33 @@ export default function RevisionSemanal() {
         />
       ),
     },
-    { key: 'project', label: 'Proyecto' },
+    {
+      key: 'project', label: 'Proyecto',
+      render: (r) => (
+        <span>
+          {r.project}
+          {!r.vigente && (
+            <span style={{
+              background: '#fee2e2', color: '#991b1b',
+              padding: '1px 6px', borderRadius: 8, fontSize: 9, fontWeight: 700,
+              marginLeft: 6,
+            }} title="Fuera de garantía">
+              FUERA GAR.
+            </span>
+          )}
+        </span>
+      ),
+    },
     {
       key: 'code', label: 'Código',
       render: (r) => r.code
         ? <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{r.code}</span>
-        : '—',
+        : <span style={{ color: 'var(--gray-400)' }}>sin código</span>,
     },
     { key: 'grupo', label: 'Cliente' },
     { key: 'platform', label: 'Plataforma' },
     {
-      key: 'estado', label: 'Estado',
+      key: 'estado', label: 'Estado hoy',
       render: (r) => {
         if (!r.estado) {
           return <span style={{
@@ -270,6 +277,21 @@ export default function RevisionSemanal() {
       },
     },
     {
+      key: 'estadoAyer', label: 'Ayer',
+      render: (r) => {
+        if (!r.estadoAyer) return <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>—</span>;
+        const color = HEAT_COLORS[r.estadoAyer] || '#6b7280';
+        return (
+          <span style={{
+            background: `${color}20`, color: color,
+            padding: '2px 6px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+          }} title={`Ayer: ${r.estadoAyer}`}>
+            {r.estadoAyer === 'OK' ? '✓' : r.estadoAyer.charAt(0)}
+          </span>
+        );
+      },
+    },
+    {
       key: 'incidenciaId', label: 'Incidencia',
       render: (r) => r.incidenciaId
         ? <a href={`/incidencias`} onClick={(e) => { e.preventDefault(); navigate('/incidencias'); }}
@@ -284,7 +306,6 @@ export default function RevisionSemanal() {
         ? <span style={{ fontSize: 11 }}>👤 {r.revisadoPor}</span>
         : '—',
     },
-    { key: 'fechaRevision', label: 'Fecha', render: (r) => fmtDate(r.fechaRevision) },
     {
       key: '_actions', label: '', sortable: false,
       render: (r) => canEdit ? (
@@ -300,38 +321,24 @@ export default function RevisionSemanal() {
   return (
     <div>
       <div className="section-header">
-        <h2>Revisión semanal SFV</h2>
+        <h2>Revisión diaria SFV</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>
           {data.total} plantas PV vigentes
         </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button className="btn btn-sm" onClick={() => navWeek(-1)}><ChevronLeft size={14} /></button>
-          <div style={{ minWidth: 200, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>
-            Semana {week} · {year}
-            <div style={{ fontSize: 10, color: 'var(--gray-500)', fontWeight: 400 }}>
-              {fmtDate(wkStart)} – {fmtDate(new Date(wkStart.getTime() + 6 * 86400000))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" onClick={() => navDay(-1)}><ChevronLeft size={14} /></button>
+          <div style={{ minWidth: 230, textAlign: 'center', fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
+            <input type="date" value={fecha}
+              onChange={(e) => setFecha(e.target.value || todayISO())}
+              style={{ fontWeight: 700, fontSize: 13, border: '1px solid var(--gray-200)', borderRadius: 6, padding: '3px 6px' }} />
+            <div style={{ fontSize: 10, color: 'var(--gray-500)', fontWeight: 400, marginTop: 2 }}>
+              {diaNombre(fecha)} {isToday && '· HOY'}
             </div>
           </div>
-          <button className="btn btn-sm" onClick={() => navWeek(1)}><ChevronRight size={14} /></button>
-          <button className="btn btn-sm" onClick={goCurrent}>
-            <Calendar size={14} /> Esta semana
-          </button>
-          <button className="btn btn-sm"
-            onClick={() => setShowHeatmap((v) => !v)}
-            style={{
-              background: showHeatmap ? '#0EA5E9' : '#dbeafe',
-              color: showHeatmap ? '#fff' : '#1e40af',
-              borderColor: showHeatmap ? '#0EA5E9' : '#bae6fd',
-              fontWeight: 600,
-            }}>
-            <LayoutGrid size={14} /> {showHeatmap ? 'Ocultar heatmap' : 'Ver mini calendario'}
-          </button>
-          <button className="btn btn-sm btn-primary" onClick={openReporteHTML}
-            title="Generar reporte HTML imprimible de esta semana">
-            <FileText size={14} /> Reporte semanal
-          </button>
-          <button className="btn btn-sm" onClick={() => downloadXLSX(filtered, 'RevisionSemanal', `revision_${year}_W${week}.xlsx`)}>
-            <Download size={14} /> Excel
+          <button className="btn btn-sm" onClick={() => navDay(1)}><ChevronRight size={14} /></button>
+          <button className="btn btn-sm" onClick={goToday}
+            style={isToday ? { background: '#0EA5E9', color: '#fff' } : undefined}>
+            <Calendar size={14} /> Hoy
           </button>
         </div>
       </div>
@@ -342,8 +349,8 @@ export default function RevisionSemanal() {
         display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
       }}>
         <div style={{ flex: 1, fontSize: 12, color: 'var(--gray-700)', minWidth: 240 }}>
-          Checklist semanal de plantas PV en garantía vigente.
-          Selecciona el estado de cada planta. Si marcas algo distinto de "OK", se ofrecerá generar una incidencia.
+          Checklist <strong>diario</strong> de plantas PV en garantía vigente.
+          Cada día queda registrado de forma independiente — el histórico se mantiene siempre.
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="btn btn-sm"
@@ -356,21 +363,22 @@ export default function RevisionSemanal() {
             <LayoutGrid size={14} /> {showHeatmap ? 'Ocultar' : 'Mostrar'} mini calendario
           </button>
           <button className="btn btn-sm btn-primary" onClick={openReporteHTML}>
-            <FileText size={14} /> Generar reporte semanal
+            <FileText size={14} /> Reporte del día
+          </button>
+          <button className="btn btn-sm" onClick={() => downloadXLSX(filtered, 'RevisionDiaria', `revision_${fecha}.xlsx`)}>
+            <Download size={14} /> Excel
           </button>
         </div>
       </div>
 
-      {/* Mini KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
         <Kpi label="Total plantas" value={data.total} color="#1E3A5F" />
-        <Kpi label="Revisadas" value={data.revisadas} color="#0EA5E9" />
+        <Kpi label="Revisadas hoy" value={data.revisadas} color="#0EA5E9" />
         <Kpi label="Pendientes" value={data.pendientes} color="#F59E0B" />
         <Kpi label="Cumplimiento" value={`${pctComplete}%`}
           color={pctComplete === 100 ? '#16A34A' : pctComplete >= 50 ? '#F59E0B' : '#DC2626'} />
       </div>
 
-      {/* Barra de progreso */}
       {data.total > 0 && (
         <div style={{ height: 8, background: 'var(--gray-200)', borderRadius: 4, overflow: 'hidden', marginBottom: 14 }}>
           <div style={{
@@ -393,15 +401,13 @@ export default function RevisionSemanal() {
         </select>
       </div>
 
-      {/* Heatmap colapsable */}
       {showHeatmap && (
-        <Heatmap data={heatmap} loading={heatLoading} onClickCell={(planta, w) => {
-          setYear(w.year); setWeek(w.week);
+        <Heatmap data={heatmap} loading={heatLoading} onClickCell={(planta, c) => {
+          setFecha(c.fecha);
           setShowHeatmap(false);
         }} />
       )}
 
-      {/* Barra de guardado masivo cuando hay selección */}
       {canEdit && selected.size > 0 && (
         <div style={{
           background: '#0EA5E9', color: 'white', padding: '12px 16px',
@@ -413,20 +419,14 @@ export default function RevisionSemanal() {
           </div>
           <span style={{ opacity: 0.85, fontSize: 12 }}>Marcar como:</span>
           <select value={bulkEstado} onChange={(e) => setBulkEstado(e.target.value)}
-            style={{
-              padding: '4px 8px', borderRadius: 6, border: 0,
-              fontSize: 12, fontWeight: 600,
-            }}>
+            style={{ padding: '4px 8px', borderRadius: 6, border: 0, fontSize: 12, fontWeight: 600 }}>
             {ESTADOS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
           <button className="btn btn-sm"
             onClick={onBulkSave}
             disabled={savingBulk}
-            style={{
-              background: 'white', color: '#0EA5E9', fontWeight: 700,
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-            }}>
-            <Save size={14} /> {savingBulk ? 'Guardando...' : `Guardar semana (${selected.size})`}
+            style={{ background: 'white', color: '#0EA5E9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Save size={14} /> {savingBulk ? 'Guardando...' : `Guardar día (${selected.size})`}
           </button>
           <button className="btn btn-sm"
             onClick={() => setSelected(new Set())}
@@ -440,17 +440,15 @@ export default function RevisionSemanal() {
         <div className="empty"><span className="spinner" /></div>
       ) : data.total === 0 ? (
         <div className="empty">
-          No hay plantas PV vigentes registradas todavía.<br />
-          <small>Agrega pólizas tipo PV / FV en la sección de Pólizas.</small>
+          No hay plantas PV vigentes registradas todavía.
         </div>
       ) : (
         <DataTable columns={columns} data={filtered} defaultPageSize={50} />
       )}
 
-      {/* Modal de revisión */}
       <Modal
         open={!!editing} onClose={() => setEditing(null)}
-        title={editing ? `Revisión — ${editing.project}` : ''}
+        title={editing ? `Revisión ${diaNombre(fecha)} — ${editing.project}` : ''}
         wide
         footer={
           <>
@@ -468,30 +466,37 @@ export default function RevisionSemanal() {
               <div><strong>Proyecto:</strong> {editing.project}</div>
               <div><strong>Código:</strong> {editing.code || '—'} · <strong>Plataforma:</strong> {editing.platform || '—'}</div>
               <div><strong>Cliente:</strong> {editing.grupo || '—'} · <strong>Zona:</strong> {editing.zona || '—'}</div>
-              <div><strong>Semana:</strong> {week} de {year} · <strong>Póliza fin:</strong> {fmtDate(editing.polEnd)}</div>
+              <div><strong>Fecha:</strong> {diaNombre(fecha)} {isToday && '(hoy)'} · <strong>Póliza fin:</strong> {fmtDate(editing.polEnd)}</div>
+              {editing.estadoAyer && (
+                <div style={{ marginTop: 6, padding: '4px 8px', background: 'white', borderRadius: 4, display: 'inline-block' }}>
+                  <strong>Ayer:</strong>{' '}
+                  <span style={{
+                    background: HEAT_COLORS[editing.estadoAyer] + '20',
+                    color: HEAT_COLORS[editing.estadoAyer],
+                    padding: '1px 6px', borderRadius: 4, fontWeight: 700,
+                  }}>{editing.estadoAyer}</span>
+                </div>
+              )}
             </div>
 
-            {/* Botones grandes para elegir estado */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--gray-700)' }}>
-                Estado de la planta esta semana *
+                Estado de la planta {isToday ? 'HOY' : `el ${fecha}`} *
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
                 {ESTADOS.map((s) => {
                   const Icon = s.icon;
-                  const selected = form.estado === s.id;
+                  const selectedBtn = form.estado === s.id;
                   return (
-                    <button key={s.id}
-                      type="button"
+                    <button key={s.id} type="button"
                       onClick={() => setForm({ ...form, estado: s.id })}
                       style={{
                         padding: 12, borderRadius: 10, cursor: 'pointer',
-                        border: `2px solid ${selected ? s.fg : 'var(--gray-200)'}`,
-                        background: selected ? s.bg : 'var(--card-bg, white)',
-                        color: selected ? s.fg : 'var(--gray-700)',
+                        border: `2px solid ${selectedBtn ? s.fg : 'var(--gray-200)'}`,
+                        background: selectedBtn ? s.bg : 'var(--card-bg, white)',
+                        color: selectedBtn ? s.fg : 'var(--gray-700)',
                         display: 'flex', alignItems: 'center', gap: 8,
-                        fontSize: 13, fontWeight: selected ? 700 : 500,
-                        transition: 'all .15s',
+                        fontSize: 13, fontWeight: selectedBtn ? 700 : 500,
                       }}>
                       <Icon size={18} />
                       <span>{s.label}</span>
@@ -502,19 +507,13 @@ export default function RevisionSemanal() {
             </div>
 
             <div className="form-row full" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)' }}>
-                Observaciones
-              </label>
-              <textarea
-                rows="3"
-                value={form.observaciones}
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)' }}>Observaciones</label>
+              <textarea rows="3" value={form.observaciones}
                 onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
-                placeholder="Detalles de la revisión, hallazgos, próximos pasos..."
-                style={{ width: '100%' }}
-              />
+                placeholder="Detalles, hallazgos, próximos pasos..."
+                style={{ width: '100%' }} />
             </div>
 
-            {/* Aviso si no es OK y no hay incidencia */}
             {form.estado !== 'OK' && !editing.incidenciaId && (
               <div style={{
                 background: '#fef3c7', border: '1px solid #fde68a',
@@ -522,7 +521,7 @@ export default function RevisionSemanal() {
                 fontSize: 12, color: '#92400e',
               }}>
                 ⚠️ El estado seleccionado es <strong>"{form.estado}"</strong>.
-                Al guardar te preguntaremos si deseas generar una incidencia para dar seguimiento.
+                Al guardar te preguntaremos si deseas generar una incidencia.
               </div>
             )}
             {editing.incidenciaId && (
@@ -541,14 +540,6 @@ export default function RevisionSemanal() {
   );
 }
 
-// ── Mini calendario heatmap ──
-const HEAT_COLORS = {
-  'OK':                '#16a34a',
-  'Sin comunicación':  '#f59e0b',
-  'Falla':             '#dc2626',
-  'Falta de datos':    '#3b82f6',
-};
-
 function Heatmap({ data, loading, onClickCell }) {
   if (loading) {
     return <div className="empty" style={{ marginBottom: 14 }}><span className="spinner" /></div>;
@@ -558,9 +549,7 @@ function Heatmap({ data, loading, onClickCell }) {
       <div style={{
         background: 'var(--gray-50, #f9fafb)', padding: 24, borderRadius: 10,
         textAlign: 'center', color: 'var(--gray-400)', marginBottom: 14,
-      }}>
-        Sin datos para el heatmap.
-      </div>
+      }}>Sin datos.</div>
     );
   }
 
@@ -570,7 +559,7 @@ function Heatmap({ data, loading, onClickCell }) {
       borderRadius: 10, padding: 16, marginBottom: 14, overflowX: 'auto',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <strong style={{ fontSize: 14 }}>📅 Heatmap — últimas {data.weeks?.length} semanas</strong>
+        <strong style={{ fontSize: 14 }}>📅 Calendario — últimos {data.dias?.length || 14} días</strong>
         <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
           {Object.entries(HEAT_COLORS).map(([k, c]) => (
             <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -591,10 +580,9 @@ function Heatmap({ data, loading, onClickCell }) {
             <th style={{ position: 'sticky', left: 0, background: 'var(--card-bg)', padding: 4, textAlign: 'left', minWidth: 160 }}>
               Planta
             </th>
-            {data.weeks?.map((w) => (
-              <th key={`${w.year}-${w.week}`} style={{ padding: 2, fontWeight: 600, color: 'var(--gray-500)', minWidth: 36 }}>
-                <div style={{ fontSize: 9 }}>W{String(w.week).padStart(2, '0')}</div>
-                <div style={{ fontSize: 9, color: 'var(--gray-400)' }}>{w.year}</div>
+            {data.dias?.map((d) => (
+              <th key={d.fecha} style={{ padding: 2, fontWeight: 600, color: 'var(--gray-500)', minWidth: 32 }}>
+                <div style={{ fontSize: 9 }}>{d.label}</div>
               </th>
             ))}
             <th style={{ padding: 4, fontWeight: 600, color: 'var(--gray-500)', textAlign: 'center' }}>OK</th>
@@ -605,9 +593,7 @@ function Heatmap({ data, loading, onClickCell }) {
           {data.plantas.slice(0, 60).map((p) => (
             <tr key={p.polizaId}>
               <td style={{
-                padding: '3px 6px',
-                background: 'var(--card-bg)',
-                position: 'sticky', left: 0,
+                padding: '3px 6px', background: 'var(--card-bg)', position: 'sticky', left: 0,
                 fontWeight: 500, fontSize: 11,
                 whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis',
               }} title={`${p.project} · ${p.code || ''}`}>
@@ -618,10 +604,10 @@ function Heatmap({ data, loading, onClickCell }) {
                 return (
                   <td key={i} style={{ padding: 0, textAlign: 'center' }}>
                     <div
-                      title={`${p.project} — W${c.week} ${c.year}: ${c.estado || 'sin revisar'}`}
+                      title={`${p.project} — ${c.fecha}: ${c.estado || 'sin revisar'}`}
                       onClick={() => onClickCell && onClickCell(p, c)}
                       style={{
-                        width: 24, height: 22, borderRadius: 3, cursor: 'pointer',
+                        width: 22, height: 22, borderRadius: 3, cursor: 'pointer',
                         background: color || '#f3f4f6',
                         border: color ? `1px solid ${color}` : '1px solid #d1d5db',
                         margin: 'auto', position: 'relative',
@@ -650,11 +636,11 @@ function Heatmap({ data, loading, onClickCell }) {
 
       {data.plantas.length > 60 && (
         <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 8, textAlign: 'center' }}>
-          Mostrando 60 de {data.plantas.length} plantas. Filtra con el buscador para acotar.
+          Mostrando 60 de {data.plantas.length} plantas. Filtra arriba para acotar.
         </div>
       )}
       <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 8 }}>
-        💡 Click en una celda para ir a esa semana. El punto rojo indica que hay incidencia generada.
+        💡 Click en una celda para ir a ese día. El punto rojo indica incidencia generada.
       </div>
     </div>
   );
