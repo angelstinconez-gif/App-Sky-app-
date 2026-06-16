@@ -229,23 +229,7 @@ export default function RevisionSemanal() {
         />
       ),
     },
-    {
-      key: 'project', label: 'Proyecto',
-      render: (r) => (
-        <span>
-          {r.project}
-          {!r.vigente && (
-            <span style={{
-              background: '#fee2e2', color: '#991b1b',
-              padding: '1px 6px', borderRadius: 8, fontSize: 9, fontWeight: 700,
-              marginLeft: 6,
-            }} title="Fuera de garantía">
-              FUERA GAR.
-            </span>
-          )}
-        </span>
-      ),
-    },
+    { key: 'project', label: 'Proyecto' },
     {
       key: 'code', label: 'Código',
       render: (r) => r.code
