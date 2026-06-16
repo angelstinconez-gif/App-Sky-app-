@@ -13,7 +13,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app import db
 from app.models.user import User
 from app.models.ai_chat import AIConversation
-from app.utils.roles import role_required
+from app.utils.decorators import role_required
 from app.utils.ai_tools import (
     TOOLS_REGISTRY, TOOLS_SCHEMA_GEMINI, ejecutar_tool, PERMISOS,
 )
