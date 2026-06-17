@@ -19,16 +19,16 @@ export default function AIAssistant() {
   const [history, setHistory] = useState([]);
   const bottomRef = useRef(null);
 
-  // Sólo mostrar si hay sesión iniciada
-  if (!user) return null;
+  // ⚠️ TODOS los hooks deben ir ANTES de cualquier return condicional
+  // (Regla de Hooks de React: el mismo número de hooks en cada render)
 
-  // Check status al montar
+  // Check status al montar (solo si hay usuario)
   useEffect(() => {
-    asistenteApi.status().then(setStatus).catch(() => setStatus({ available: false, allowed: false }));
-  }, []);
-
-  // Si el usuario NO tiene permiso, no mostramos NADA (ni el botón flotante)
-  if (status && status.allowed === false) return null;
+    if (!user) return;
+    asistenteApi.status()
+      .then(setStatus)
+      .catch(() => setStatus({ available: false, allowed: false }));
+  }, [user]);
 
   // Auto-scroll al final
   useEffect(() => {
@@ -41,6 +41,10 @@ export default function AIAssistant() {
       asistenteApi.listarConversaciones().then(setHistory).catch(() => setHistory([]));
     }
   }, [showHistory]);
+
+  // Returns condicionales DESPUÉS de todos los hooks ✓
+  if (!user) return null;
+  if (status && status.allowed === false) return null;
 
   const sendMessage = async () => {
     const text = input.trim();
