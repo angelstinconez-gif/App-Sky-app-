@@ -25,7 +25,7 @@ def create_app(config_class="config.Config"):
         supports_credentials=True,
     )
 
-    # ── Modelos (importar antes de crear blueprints para que SQLAlchemy los registre) ──
+    # ── Modelos ──
     from app.models import (  # noqa: F401
         user,
         incidencia,
@@ -76,6 +76,7 @@ def create_app(config_class="config.Config"):
     from app.routes.search import bp as search_bp
     from app.routes.revisiones_semanales import bp as revsem_bp
     from app.routes.asistente import bp as asistente_bp
+    from app.routes.admin_fix import bp as admin_fix_bp
 
     app.register_blueprint(auth_bp,         url_prefix="/api/auth")
     app.register_blueprint(users_bp,        url_prefix="/api/users")
@@ -103,6 +104,7 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(search_bp,       url_prefix="/api/search")
     app.register_blueprint(revsem_bp,       url_prefix="/api/revisiones-semanales")
     app.register_blueprint(asistente_bp,    url_prefix="/api/asistente")
+    app.register_blueprint(admin_fix_bp,    url_prefix="/api/admin-fix")
 
     # ── CLI: seed ──
     from app.seeds.seed_cli import register_seed_cli
@@ -116,7 +118,7 @@ def create_app(config_class="config.Config"):
     @app.route("/")
     def root():
         return jsonify(
-            service="SKY PV Monitor API",
+            service="SKY SENSE API",
             version="1.0.0",
             endpoints="/api/*",
             health="/api/health",
@@ -136,7 +138,6 @@ def create_app(config_class="config.Config"):
         import traceback
         tb = traceback.format_exc()
         app.logger.error("Internal error: %s\n%s", e, tb)
-        # En desarrollo (DEBUG=1) devolvemos el mensaje real para depurar.
         show = app.config.get("DEBUG") or os.environ.get("FLASK_DEBUG") == "1"
         return jsonify(
             error="internal_error",
