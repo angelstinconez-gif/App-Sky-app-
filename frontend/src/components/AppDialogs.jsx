@@ -1,13 +1,22 @@
 /**
- * AppDialogs — Reemplaza window.alert, window.confirm y window.prompt
- * por modales propios de la app (no se ven feos del navegador).
+ * AppDialogs — Provee window.skyAlert / skyConfirm / skyPrompt
+ * (Promise-based) que muestran modales propios con la marca SkySense.
  *
- * Se monta una sola vez en App.jsx y se encarga de todo.
- * Las llamadas a alert(), confirm(), prompt() en cualquier parte del código
- * se interceptan y muestran un modal estilizado con la marca SkySense.
+ * Se monta en App.jsx. Las páginas usan: await window.skyConfirm(...)
+ *
+ * NOTA: Para evitar errores si se llama ANTES de que el componente monte,
+ * inicializamos los stubs en window de inmediato (síncrono al import).
  */
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info, HelpCircle, X } from 'lucide-react';
+
+// ── Stubs defensivos: si alguien llama antes de que el componente monte,
+// caemos al confirm/alert/prompt nativo. Después de mount los reemplazamos.
+if (typeof window !== 'undefined') {
+  if (!window.skyAlert) window.skyAlert = (msg) => Promise.resolve(window.alert(msg));
+  if (!window.skyConfirm) window.skyConfirm = (msg) => Promise.resolve(window.confirm(msg));
+  if (!window.skyPrompt) window.skyPrompt = (msg, def = '') => Promise.resolve(window.prompt(msg, def));
+}
 
 export default function AppDialogs() {
   const [dialog, setDialog] = useState(null);

@@ -16,15 +16,22 @@ class User(db.Model):
     initials = db.Column(db.String(4))
     role = db.Column(db.String(20), nullable=False, default="operator")
     active = db.Column(db.Boolean, default=True, nullable=False)
-    ai_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    # nullable=True para tolerar usuarios pre-migración
+    ai_enabled = db.Column(db.Boolean, default=False, nullable=True)
     last_login = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def can_use_ai(self):
-        """Admin siempre tiene acceso; otros solo si ai_enabled=True."""
-        return (self.role or "").lower() == "admin" or bool(self.ai_enabled)
+        """Admin siempre tiene acceso; otros solo si ai_enabled=True.
+        Defensivo: usa getattr para no fallar si la columna aun no existe."""
+        try:
+            if (self.role or "").lower() == "admin":
+                return True
+            return bool(getattr(self, "ai_enabled", False))
+        except Exception:
+            return (self.role or "").lower() == "admin"
 
     def set_password(self, password: str):
         self.password_hash = bcrypt.hashpw(
@@ -40,13 +47,17 @@ class User(db.Model):
             return False
 
     def to_dict(self, include_email=True):
+        try:
+            ai_val = bool(getattr(self, "ai_enabled", False) or False)
+        except Exception:
+            ai_val = False
         d = {
             "id": self.id,
             "name": self.name,
             "initials": self.initials or "".join([w[0] for w in (self.name or "").split()[:2]]).upper(),
             "role": self.role,
             "active": self.active,
-            "aiEnabled": bool(self.ai_enabled),
+            "aiEnabled": ai_val,
             "canUseAi": self.can_use_ai,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
