@@ -449,7 +449,7 @@ export default function Checklists() {
                     />
                     <button className="btn btn-sm btn-danger"
                       style={{ width: '100%', marginTop: 4, fontSize: 11 }}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!await window.skyConfirm('¿Eliminar esta foto?')) return;
                         setForm({ ...form, fotos: form.fotos.filter((_, n) => n !== i) });
                       }}>
