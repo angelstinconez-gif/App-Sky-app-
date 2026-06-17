@@ -25,10 +25,16 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
+    # Default permisivo: incluye localhost + URLs de Render conocidas.
+    # Si necesitas otros orígenes, define la env var CORS_ORIGINS separada por comas.
     CORS_ORIGINS = [
         o.strip()
         for o in os.environ.get(
-            "CORS_ORIGINS", "http://localhost:5173,http://localhost:3000"
+            "CORS_ORIGINS",
+            "http://localhost:5173,"
+            "http://localhost:3000,"
+            "https://skypv-web.onrender.com,"
+            "https://skypv-app.onrender.com"
         ).split(",")
         if o.strip()
     ]
