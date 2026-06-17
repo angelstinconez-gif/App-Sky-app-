@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/endpoints';
 
 const AuthContext = createContext(null);
@@ -23,27 +23,37 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const data = await authApi.login(email, password);
     localStorage.setItem('skypv_access_token', data.accessToken);
     localStorage.setItem('skypv_refresh_token', data.refreshToken);
     setUser(data.user);
     return data.user;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authApi.logout();
     } catch (e) {}
     localStorage.removeItem('skypv_access_token');
     localStorage.removeItem('skypv_refresh_token');
     setUser(null);
-  };
+  }, []);
 
-  const hasRole = (...roles) => user && roles.includes(user.role);
+  // hasRole estable: depende solo del rol del usuario
+  const hasRole = useCallback(
+    (...roles) => !!user && roles.includes(user.role),
+    [user]
+  );
+
+  // value estable: solo cambia cuando user/loading cambian de verdad
+  const value = useMemo(
+    () => ({ user, loading, login, logout, hasRole }),
+    [user, loading, login, logout, hasRole]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasRole }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
