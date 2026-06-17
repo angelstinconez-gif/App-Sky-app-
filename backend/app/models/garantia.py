@@ -20,8 +20,10 @@ class Garantia(db.Model):
     ticket = db.Column(db.String(80))
     status = db.Column(db.String(80), index=True)
     upload_date = db.Column(db.Date)
-    abierto_por = db.Column(db.String(160))                 # persona que abrió el ticket de garantía
+    abierto_por = db.Column(db.String(160))                 # persona que abrió el ticket con el proveedor
     abierto_por_email = db.Column(db.String(180))
+    creado_por = db.Column(db.String(160))                  # usuario que SUBIÓ el registro a SkySense
+    creado_por_email = db.Column(db.String(180))
     comments = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -53,6 +55,8 @@ class Garantia(db.Model):
             "uploadDate": self.upload_date.isoformat() if self.upload_date else None,
             "abiertoPor": self.abierto_por,
             "abiertoPorEmail": self.abierto_por_email,
+            "creadoPor": self.creado_por,
+            "creadoPorEmail": self.creado_por_email,
             "comments": self.comments,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
             "updatedAt": self.updated_at.isoformat() if self.updated_at else None,

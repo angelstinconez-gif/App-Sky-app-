@@ -150,7 +150,20 @@ export default function Garantias() {
       else await garantiasApi.create(payload);
       toast(editingId ? 'Actualizada' : 'Creada'); setOpen(false); load();
     } catch (e) {
-      toast(e?.response?.data?.message || 'Error al guardar', 'error');
+      // 409 = duplicate (anti-duplicado del backend)
+      if (e?.response?.status === 409) {
+        const existing = e?.response?.data?.existing;
+        await window.skyAlert(
+          '⚠️ Ya existe una garantía con esos mismos datos.\n\n' +
+          (existing ? `ID #${existing.id} · Proyecto: ${existing.project}\n` +
+                      `Ticket: ${existing.ticket || '—'} · Error: ${existing.error || '—'}\n\n` : '') +
+          'Para evitar duplicados, edita la existente en lugar de crear una nueva.'
+        );
+        setOpen(false);
+        load();
+      } else {
+        toast(e?.response?.data?.message || 'Error al guardar', 'error');
+      }
     }
   };
 
@@ -171,9 +184,15 @@ export default function Garantias() {
       { key: 'supplier', label: 'Proveedor' },
       { key: 'ticket', label: 'Ticket' },
       {
-        key: 'abiertoPor', label: 'Abrió',
+        key: 'abiertoPor', label: 'Abrió ticket',
         render: (r) => r.abiertoPor
           ? <span style={{ fontSize: 11 }}>👤 {r.abiertoPor}</span>
+          : <span style={{ color: 'var(--gray-400)' }}>—</span>,
+      },
+      {
+        key: 'creadoPor', label: 'Subió',
+        render: (r) => r.creadoPor
+          ? <span style={{ fontSize: 11, color: '#0033A0' }}>📤 {r.creadoPor}</span>
           : <span style={{ color: 'var(--gray-400)' }}>—</span>,
       },
       {

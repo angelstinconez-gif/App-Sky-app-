@@ -47,6 +47,30 @@ def _apply(g: Garantia, data: dict):
     g.comments = parse_str(data.get("comments"))
 
 
+def _norm(s):
+    return (s or "").strip().lower()
+
+
+def _find_duplicate(project, ticket, error, sn):
+    """Busca una garantía existente con la misma clave (project, ticket, error, sn)."""
+    if not project:
+        return None
+    candidates = Garantia.query.filter(
+        Garantia.project.ilike(project or "")
+    ).all()
+    pk = _norm(project)
+    tk = _norm(ticket)
+    er = _norm(error)
+    sk = _norm(sn)
+    for c in candidates:
+        if (_norm(c.project) == pk and
+            _norm(c.ticket) == tk and
+            _norm(c.error) == er and
+            _norm(c.sn) == sk):
+            return c
+    return None
+
+
 @bp.route("", methods=["POST"])
 @jwt_required()
 @role_required("admin", "mantenimiento")
@@ -55,13 +79,31 @@ def create_garantia():
     data = request.get_json(silent=True) or {}
     if not data.get("project"):
         return jsonify(error="missing_project"), 400
+
+    # ── Anti-duplicado: misma (project, ticket, error, sn) = no crear nuevo ──
+    dup = _find_duplicate(
+        parse_str(data.get("project")),
+        parse_str(data.get("ticket")),
+        parse_str(data.get("error")),
+        parse_str(data.get("sn")),
+    )
+    if dup:
+        return jsonify(
+            error="duplicate",
+            message=f"Ya existe una garantía con esos datos (ID #{dup.id}). Se evitó duplicar.",
+            existing=dup.to_dict(),
+        ), 409
+
     g = Garantia(project=parse_str(data["project"]))
     _apply(g, data)
-    # Auto-llenar quién abre el ticket si no se especificó
     claims = get_jwt() or {}
+    # Quien abrió el ticket con el proveedor (si no se especificó, usa el usuario logueado)
     if not g.abierto_por:
         g.abierto_por = claims.get("name")
         g.abierto_por_email = claims.get("email")
+    # Quien SUBIÓ el registro a SkySense (siempre del JWT, no editable desde el form)
+    g.creado_por = claims.get("name")
+    g.creado_por_email = claims.get("email")
     db.session.add(g)
     db.session.flush()
     log_change("garantias", "crear", g.project, new=g.to_dict())

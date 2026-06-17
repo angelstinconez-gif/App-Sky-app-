@@ -75,3 +75,54 @@ def admin_health():
         )
     except Exception as e:
         return jsonify(error=str(e)), 500
+
+
+@bp.route("/add-garantias-creado-por", methods=["GET", "POST"])
+@jwt_required()
+@role_required("admin")
+def add_garantias_creado_por():
+    """Añade columnas creado_por / creado_por_email a garantias si no existen."""
+    from sqlalchemy import inspect
+    insp = inspect(db.engine)
+    if not insp.has_table("garantias"):
+        return jsonify(error="tabla garantias no existe"), 404
+    cols = {c["name"] for c in insp.get_columns("garantias")}
+    results = []
+    for col, ddl in [
+        ("creado_por",       "ALTER TABLE garantias ADD COLUMN creado_por VARCHAR(160)"),
+        ("creado_por_email", "ALTER TABLE garantias ADD COLUMN creado_por_email VARCHAR(180)"),
+    ]:
+        if col in cols:
+            results.append({"col": col, "status": "ya existe"})
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(ddl))
+            results.append({"col": col, "status": "creada"})
+        except Exception as e:
+            results.append({"col": col, "status": f"error: {str(e)[:120]}"})
+    return jsonify(success=True, results=results)
+
+
+@bp.route("/dedupe-garantias", methods=["POST"])
+@jwt_required()
+@role_required("admin")
+def dedupe_garantias():
+    """Elimina duplicados de garantías por (project, ticket, error, sn).
+    Conserva el ID más bajo. Devuelve cuántos eliminó."""
+    from app.models.garantia import Garantia
+    def _norm(s):
+        return (s or "").strip().lower()
+    seen, to_del = set(), []
+    for g in Garantia.query.order_by(Garantia.id.asc()).all():
+        k = (_norm(g.project), _norm(g.ticket), _norm(g.error), _norm(g.sn))
+        # Si todos están vacíos, no es un duplicado real, skip
+        if all(not x for x in k):
+            continue
+        if k in seen:
+            to_del.append(g.id)
+            db.session.delete(g)
+        else:
+            seen.add(k)
+    db.session.commit()
+    return jsonify(success=True, eliminados=len(to_del), ids=to_del[:50])
