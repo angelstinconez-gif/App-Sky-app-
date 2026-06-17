@@ -1,6 +1,13 @@
-<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="#0033A0">
-  <path d="M100 8 L155 60 Q120 60 100 100 Q80 60 45 60 Z"/>
-  <path d="M192 100 L140 155 Q140 120 100 100 Q140 80 140 45 Z"/>
-  <path d="M100 192 L45 140 Q80 140 100 100 Q120 140 155 140 Z"/>
-  <path d="M8 100 L60 45 Q60 80 100 100 Q60 120 60 155 Z"/>
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo SkySense — 4 triángulos formando un diamante con esquinas redondeadas -->
+  <g fill="#0033A0" stroke="#0033A0" stroke-width="14" stroke-linejoin="round">
+    <!-- Triángulo SUPERIOR (apex en N, base horizontal hacia el centro) -->
+    <polygon points="100,24 158,74 42,74" />
+    <!-- Triángulo DERECHO (apex en E, base vertical hacia el centro) -->
+    <polygon points="176,100 126,158 126,42" />
+    <!-- Triángulo INFERIOR (apex en S) -->
+    <polygon points="100,176 42,126 158,126" />
+    <!-- Triángulo IZQUIERDO (apex en W) -->
+    <polygon points="24,100 74,42 74,158" />
+  </g>
 </svg>
