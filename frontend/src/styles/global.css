@@ -1,13 +1,22 @@
 :root {
-  --sky:#0EA5E9; --sky-dark:#0284C7; --sky-light:#E0F2FE;
+  /* ═══ Paleta SkySense (azul corporativo) ═══ */
+  --sky:#0033A0;          /* Azul SkySense primario (royal blue del logo) */
+  --sky-dark:#001F66;     /* Azul oscuro para hover/énfasis */
+  --sky-light:#E6EDFA;    /* Azul muy claro para fondos sutiles */
+  --sky-accent:#3D6BD6;   /* Azul medio para acentos / hover sobre fondo oscuro */
+  /* Brand secundario (gradientes) */
+  --brand-gradient:linear-gradient(135deg, #0033A0 0%, #001F66 100%);
+  --brand-gradient-light:linear-gradient(135deg, #E6EDFA 0%, #FFFFFF 100%);
+  /* Estados */
   --amber:#F59E0B; --amber-light:#FEF3C7;
-  --red:#EF4444; --red-light:#FEE2E2;
-  --green:#22C55E; --green-light:#DCFCE7;
-  --orange:#F97316; --orange-light:#FFEDD5;
-  --purple:#8B5CF6; --purple-light:#EDE9FE;
+  --red:#DC2626; --red-light:#FEE2E2;
+  --green:#16A34A; --green-light:#DCFCE7;
+  --orange:#EA580C; --orange-light:#FFEDD5;
+  --purple:#7C3AED; --purple-light:#EDE9FE;
+  /* Grises */
   --gray-50:#F8FAFC; --gray-100:#F1F5F9; --gray-200:#E2E8F0;
   --gray-300:#CBD5E1; --gray-400:#94A3B8; --gray-500:#64748B;
-  --gray-600:#475569; --gray-700:#334155; --gray-800:#1E293B; --gray-900:#0F172A;
+  --gray-600:#475569; --gray-700:#334155; --gray-800:#1E293B; --gray-900:#0B1736;
   --white:#FFFFFF;
   --radius:8px; --radius-lg:12px; --radius-xl:16px;
   --shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
@@ -28,16 +37,17 @@ a:hover{text-decoration:underline}
 .app-shell{display:flex;height:100vh;overflow:hidden}
 
 /* ── SIDEBAR ── */
-.sidebar{width:var(--sidebar);background:var(--gray-900);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-.sb-header{padding:16px 12px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px}
-.sb-logo{width:32px;height:32px;background:linear-gradient(135deg,var(--sky) 0%,var(--sky-dark) 100%);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-weight:600;font-size:13px}
-.sb-brand{font-size:13px;font-weight:600;color:white}
-.sb-brand span{display:block;font-size:10px;font-weight:400;color:var(--gray-400);margin-top:1px}
+.sidebar{width:var(--sidebar);background:linear-gradient(180deg,#0B1736 0%,#001F66 100%);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb-header{padding:18px 14px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.15)}
+.sb-logo{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:white;box-shadow:0 2px 8px rgba(0,0,0,.2);padding:4px}
+.sb-logo img{width:100%;height:100%;object-fit:contain}
+.sb-brand{font-size:14px;font-weight:700;color:white;letter-spacing:.02em}
+.sb-brand span{display:block;font-size:10px;font-weight:400;color:rgba(255,255,255,.55);margin-top:1px;letter-spacing:.05em;text-transform:uppercase}
 .sb-nav{padding:8px;flex:1}
-.sb-section{font-size:10px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;padding:12px 8px 4px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius);cursor:pointer;transition:all .15s;margin-bottom:2px;color:var(--gray-400)}
-.nav-item:hover{background:rgba(255,255,255,.06);color:white}
-.nav-item.active{background:rgba(14,165,233,.15);color:var(--sky)}
+.sb-section{font-size:10px;font-weight:600;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;padding:12px 8px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius);cursor:pointer;transition:all .15s;margin-bottom:2px;color:rgba(255,255,255,.7)}
+.nav-item:hover{background:rgba(255,255,255,.08);color:white}
+.nav-item.active{background:rgba(255,255,255,.12);color:white;font-weight:600;box-shadow:inset 3px 0 0 var(--sky-accent)}
 .nav-icon{width:17px;height:17px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
 .nav-label{font-size:13px;font-weight:500}
 .nav-badge{margin-left:auto;background:var(--red);color:white;font-size:10px;font-weight:600;border-radius:20px;padding:1px 6px}

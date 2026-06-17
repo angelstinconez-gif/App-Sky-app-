@@ -236,7 +236,7 @@ export default function Incidencias() {
         const lista = abiertasMismoErr.slice(0, 3).map((r) =>
           `#${r.id} · ${r.problem || r.errCode || 's/desc'} (${r.razones?.join(', ') || '—'})`
         ).join('\n');
-        const ok = confirm(
+        const ok = await window.skyConfirm(
           `⚠️ Ya existen ${abiertasMismoErr.length} incidencia(s) abierta(s) con relación:\n\n${lista}\n\n` +
           `¿Aún así deseas crear una nueva?`
         );
@@ -292,7 +292,7 @@ export default function Incidencias() {
   };
 
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar esta incidencia?')) return;
+    if (!await window.skyConfirm('¿Eliminar esta incidencia?')) return;
     await incidenciasApi.remove(id);
     toast('Eliminada');
     load();

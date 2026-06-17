@@ -1,0 +1,13 @@
+<svg viewBox="0 0 600 160" xmlns="http://www.w3.org/2000/svg" fill="#0033A0" font-family="DM Sans, system-ui, sans-serif">
+  <!-- Diamond icon -->
+  <g transform="translate(8 16)">
+    <path d="M64 0 L100 36 Q78 36 64 64 Q50 36 28 36 Z"/>
+    <path d="M128 64 L92 100 Q92 78 64 64 Q92 50 92 28 Z"/>
+    <path d="M64 128 L28 92 Q50 92 64 64 Q78 92 100 92 Z"/>
+    <path d="M0 64 L36 28 Q36 50 64 64 Q36 78 36 100 Z"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="170" y="108" font-size="92" font-weight="800" letter-spacing="-2">sky</text>
+  <text x="320" y="108" font-size="92" font-weight="300" letter-spacing="-2">sense</text>
+  <text x="560" y="44" font-size="20" font-weight="400">®</text>
+</svg>

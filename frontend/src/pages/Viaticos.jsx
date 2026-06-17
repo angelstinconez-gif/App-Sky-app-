@@ -173,7 +173,7 @@ export default function Viaticos() {
     setEditingId(r.id); setOpen(true);
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este viático?')) return;
+    if (!await window.skyConfirm('¿Eliminar este viático?')) return;
     await viaticosApi.remove(id); toast('Eliminado'); load();
   };
   const onSave = async () => {

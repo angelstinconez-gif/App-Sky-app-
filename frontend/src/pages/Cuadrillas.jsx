@@ -79,7 +79,7 @@ export default function Cuadrillas() {
     } catch (e) { toast(e?.response?.data?.message || 'Error al guardar', 'error'); }
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar esta cuadrilla?')) return;
+    if (!await window.skyConfirm('¿Eliminar esta cuadrilla?')) return;
     await cuadrillasApi.remove(id); toast('Eliminada'); load();
   };
 

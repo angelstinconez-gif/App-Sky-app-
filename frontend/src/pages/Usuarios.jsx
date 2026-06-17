@@ -34,7 +34,7 @@ export default function Usuarios() {
     setEditingId(row.id); setOpen(true);
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este usuario?')) return;
+    if (!await window.skyConfirm('¿Eliminar este usuario?')) return;
     await usersApi.remove(id); toast('Eliminado'); load();
   };
 
@@ -79,7 +79,7 @@ export default function Usuarios() {
           value={r.role || ''}
           onChange={async (e) => {
             const newRole = e.target.value;
-            if (!confirm(`¿Cambiar el rol de ${r.name} a "${newRole}"?`)) return;
+            if (!await window.skyConfirm(`¿Cambiar el rol de ${r.name} a "${newRole}"?`)) return;
             try {
               // Sólo envía el rol — NO toca la contraseña
               await usersApi.update(r.id, { role: newRole });

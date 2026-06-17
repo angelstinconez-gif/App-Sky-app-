@@ -112,7 +112,7 @@ export default function RevisionSemanal() {
     const noOk = form.estado !== 'OK';
     let generar = form.generarIncidencia;
     if (noOk && !generar && !editing.incidenciaId) {
-      generar = confirm(
+      generar = await window.skyConfirm(
         `El estado seleccionado es "${form.estado}".\n\n¿Deseas generar automáticamente una incidencia para dar seguimiento?`
       );
     }
@@ -180,12 +180,12 @@ export default function RevisionSemanal() {
     const noOk = bulkEstado !== 'OK';
     let generar = false;
     if (noOk) {
-      generar = confirm(
+      generar = await window.skyConfirm(
         `Vas a marcar ${selected.size} planta(s) con estado "${bulkEstado}".\n\n` +
         `¿Generar automáticamente una incidencia para cada una?`
       );
     } else {
-      if (!confirm(`Vas a marcar ${selected.size} planta(s) como "OK" para el ${fecha}.\n\n¿Continuar?`)) return;
+      if (!await window.skyConfirm(`Vas a marcar ${selected.size} planta(s) como "OK" para el ${fecha}.\n\n¿Continuar?`)) return;
     }
     setSavingBulk(true);
     try {

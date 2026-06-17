@@ -33,7 +33,7 @@ export default function Polizas() {
   const [classifying, setClassifying] = useState(false);
 
   const onAutoClasificar = async () => {
-    if (!confirm(
+    if (!await window.skyConfirm(
       'Va a recorrer TODAS las pólizas y aplicar las reglas:\n\n' +
       '· Código con -FV → Tipo PV\n' +
       '· Código con -HB → Tipo Híbrido\n' +
@@ -43,7 +43,7 @@ export default function Polizas() {
     setClassifying(true);
     try {
       const r = await polizasApi.autoClasificar({ sobrescribir: true });
-      alert(
+      await window.skyAlert(
         `✓ ${r.totalPolizas} pólizas analizadas\n\n` +
         `· ${r.cambios} actualizadas con tipo correcto\n` +
         `· ${r.sinCambio} ya estaban correctas\n` +
@@ -52,7 +52,7 @@ export default function Polizas() {
       );
       setReloadKey((k) => k + 1);
     } catch (e) {
-      alert(e?.response?.data?.message || 'Error al clasificar');
+      await window.skyAlert(e?.response?.data?.message || 'Error al clasificar');
     } finally {
       setClassifying(false);
     }

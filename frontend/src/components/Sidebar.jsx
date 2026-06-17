@@ -51,12 +51,11 @@ export default function Sidebar({ open, onClose }) {
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <div className="sb-header">
         <div className="sb-logo">
-          <img src="/sky-sense-logo.svg" alt="SKY SENSE" style={{ height: 28, width: 'auto' }}
-            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = 'CI'; }} />
+          <img src="/skysense-icon.svg" alt="SkySense" />
         </div>
         <div className="sb-brand">
-          Centro de Incidencias
-          <span>SKY SENSE</span>
+          skysense
+          <span>Centro de Incidencias</span>
         </div>
       </div>
 

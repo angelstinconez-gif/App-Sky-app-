@@ -131,7 +131,7 @@ export default function Mantenimiento() {
       if (generoViatico) {
         toast(`✓ Mantenimiento guardado · Viático #${saved.viaticoId} pendiente de completar`);
         setOpen(false); load();
-        if (confirm(`Se creó el viático #${saved.viaticoId} en estado Solicitado.\n\n¿Ir a completarlo ahora (TAG, placa, monto)?`)) {
+        if (await window.skyConfirm(`Se creó el viático #${saved.viaticoId} en estado Solicitado.\n\n¿Ir a completarlo ahora (TAG, placa, monto)?`)) {
           navigate('/viaticos');
         }
       } else {
@@ -143,7 +143,7 @@ export default function Mantenimiento() {
     }
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este mantenimiento?')) return;
+    if (!await window.skyConfirm('¿Eliminar este mantenimiento?')) return;
     await mantenimientoApi.remove(id);
     toast('Eliminado'); load();
   };

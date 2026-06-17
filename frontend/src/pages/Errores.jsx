@@ -23,7 +23,7 @@ export default function Errores() {
   }, [reloadKey]);
 
   const onRecargar = async () => {
-    if (!confirm('Recargará los 201 códigos del Excel oficial.\n\n✓ Conservará TODOS los códigos que hayas creado manualmente.\n✓ Sólo actualiza los del catálogo oficial.\n\n¿Continuar?')) return;
+    if (!await window.skyConfirm('Recargará los 201 códigos del Excel oficial.\n\n✓ Conservará TODOS los códigos que hayas creado manualmente.\n✓ Sólo actualiza los del catálogo oficial.\n\n¿Continuar?')) return;
     setRecargando(true);
     try {
       const r = await erroresApi.recargarCatalogo();

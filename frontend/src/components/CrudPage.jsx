@@ -60,7 +60,7 @@ export default function CrudPage({
   const onNew = () => { setForm({ ...defaults }); setEditingId(null); setOpen(true); };
   const onEdit = (row) => { setForm({ ...defaults, ...row }); setEditingId(row.id); setOpen(true); };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este registro?')) return;
+    if (!await window.skyConfirm('¿Eliminar este registro?')) return;
     try { await api.remove(id); toast('Eliminado'); load(); }
     catch (e) { toast(e?.response?.data?.message || 'Error al eliminar', 'error'); }
   };

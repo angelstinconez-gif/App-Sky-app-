@@ -103,7 +103,7 @@ export default function Directorio() {
     }
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este contacto?')) return;
+    if (!await window.skyConfirm('¿Eliminar este contacto?')) return;
     await directorioApi.remove(id);
     toast('Eliminado'); load();
   };

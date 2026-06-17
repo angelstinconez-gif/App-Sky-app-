@@ -105,7 +105,7 @@ export default function Checklists() {
     setEditingId(r.id); setTab('general'); setOpen(true);
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este checklist?')) return;
+    if (!await window.skyConfirm('¿Eliminar este checklist?')) return;
     await checklistsApi.remove(id); toast('Eliminado'); load();
   };
   const onSave = async () => {
@@ -450,7 +450,7 @@ export default function Checklists() {
                     <button className="btn btn-sm btn-danger"
                       style={{ width: '100%', marginTop: 4, fontSize: 11 }}
                       onClick={() => {
-                        if (!confirm('¿Eliminar esta foto?')) return;
+                        if (!await window.skyConfirm('¿Eliminar esta foto?')) return;
                         setForm({ ...form, fotos: form.fotos.filter((_, n) => n !== i) });
                       }}>
                       Eliminar

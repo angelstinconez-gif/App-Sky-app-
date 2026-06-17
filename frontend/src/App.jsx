@@ -30,6 +30,7 @@ import TicketsPorProyecto from './pages/TicketsPorProyecto';
 import RevisionSemanal from './pages/RevisionSemanal';
 import NotificationToast from './components/NotificationToast';
 import AIAssistant from './components/AIAssistant';
+import AppDialogs from './components/AppDialogs';
 
 function Shell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -67,6 +68,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+      <AppDialogs />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

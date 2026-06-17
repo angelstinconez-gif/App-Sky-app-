@@ -86,19 +86,19 @@ export default function AIAssistant() {
       setMessages(visible);
       setShowHistory(false);
     } catch {
-      alert('No se pudo cargar la conversación');
+      await window.skyAlert('No se pudo cargar la conversación');
     }
   };
 
   const deleteConversation = async (id, e) => {
     e.stopPropagation();
-    if (!confirm('¿Eliminar esta conversación?')) return;
+    if (!await window.skyConfirm('¿Eliminar esta conversación?')) return;
     try {
       await asistenteApi.eliminarConversacion(id);
       setHistory((h) => h.filter((c) => c.id !== id));
       if (id === conversationId) startNew();
     } catch {
-      alert('No se pudo eliminar');
+      await window.skyAlert('No se pudo eliminar');
     }
   };
 
@@ -125,11 +125,11 @@ export default function AIAssistant() {
           borderRadius: '50%',
           background: open
             ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-            : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+            : 'linear-gradient(135deg, #0033A0 0%, #001F66 100%)',
           color: '#fff',
           border: 'none',
           cursor: 'pointer',
-          boxShadow: '0 10px 30px rgba(99,102,241,0.45)',
+          boxShadow: '0 10px 30px rgba(0,51,160,0.45)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -165,7 +165,7 @@ export default function AIAssistant() {
           <div
             style={{
               padding: '14px 16px',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              background: 'linear-gradient(135deg, #0033A0 0%, #001F66 100%)',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',

@@ -138,10 +138,48 @@ def create_ticket():
     _apply(t, data)
     db.session.add(t)
     db.session.flush()
-    log_change("tickets", "crear", f"Ticket #{t.id} — {t.title}", new=t.to_dict())
+
+    # ── Si el ticket NO viene asociado a una incidencia, crear una automáticamente ──
+    # Antes solo se creaba el ticket "huérfano". Ahora todo ticket tiene su incidencia
+    # asociada para mantener trazabilidad.
+    incidencia_creada_id = None
+    if not t.incidencia_id and t.site:
+        try:
+            from app.models.incidencia import Incidencia
+            from datetime import date as _date
+            claims = get_jwt() or {}
+            inc = Incidencia(
+                site=t.site,
+                client=t.client,
+                code=t.project_code,
+                priority=t.priority or "Intermedia",
+                status="abierta",
+                problem=t.title,
+                notes=f"Incidencia generada automáticamente al crear el ticket #{t.id}.\n"
+                      f"{(t.description or '')}".strip(),
+                inc_date=t.open_date or _date.today(),
+                responsible=claims.get("name"),
+                ticket_alta="SI",
+                ticket_date=t.open_date or _date.today(),
+            )
+            db.session.add(inc)
+            db.session.flush()
+            # Enlazar bidireccional
+            t.incidencia_id = inc.id
+            incidencia_creada_id = inc.id
+        except Exception as e:
+            print(f"⚠️  No se pudo crear incidencia automática para ticket #{t.id}: {e}")
+
+    log_change("tickets", "crear",
+               f"Ticket #{t.id} — {t.title}" +
+               (f" (incidencia auto #{incidencia_creada_id})" if incidencia_creada_id else ""),
+               new=t.to_dict())
     db.session.commit()
     _notify_admin_if_not_admin("creado", t)
-    return jsonify(t.to_dict()), 201
+    response = t.to_dict()
+    if incidencia_creada_id:
+        response["incidenciaAutoGenerada"] = incidencia_creada_id
+    return jsonify(response), 201
 
 
 @bp.route("/<int:item_id>", methods=["PUT"])

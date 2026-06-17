@@ -129,7 +129,7 @@ export default function Garantias() {
   };
   const onEdit = (row) => { setForm({ ...empty, ...row }); setEditingId(row.id); setOpen(true); };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar esta garantía?')) return;
+    if (!await window.skyConfirm('¿Eliminar esta garantía?')) return;
     await garantiasApi.remove(id); toast('Eliminada'); load();
   };
   const onSave = async () => {

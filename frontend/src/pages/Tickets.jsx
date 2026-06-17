@@ -124,7 +124,7 @@ export default function Tickets() {
         const lista = abiertos.slice(0, 3).map((r) =>
           `#${r.id} · ${r.title || 's/título'} (${r.razones?.join(', ') || '—'}) [${r.status || ''}]`
         ).join('\n');
-        const ok = confirm(
+        const ok = await window.skyConfirm(
           `⚠️ Ya existen ${abiertos.length} ticket(s) abierto(s) para este proyecto:\n\n${lista}\n\n` +
           `¿Aún así deseas crear uno nuevo?`
         );
@@ -141,7 +141,7 @@ export default function Tickets() {
     }
   };
   const onDelete = async (id) => {
-    if (!confirm('¿Eliminar este ticket?')) return;
+    if (!await window.skyConfirm('¿Eliminar este ticket?')) return;
     await ticketsApi.remove(id);
     toast('Eliminado'); load();
   };

@@ -129,7 +129,7 @@ export default function Dashboard() {
   };
 
   const onDeleteAviso = async (id) => {
-    if (!confirm('¿Eliminar este aviso?')) return;
+    if (!await window.skyConfirm('¿Eliminar este aviso?')) return;
     await avisosApi.remove(id);
     setAvisos((arr) => arr.filter((a) => a.id !== id));
   };
