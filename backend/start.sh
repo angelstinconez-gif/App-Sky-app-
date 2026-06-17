@@ -1,28 +1,31 @@
 #!/usr/bin/env bash
 # Script de arranque para Render / Railway / cualquier PaaS.
 # IMPORTANTE: ningún paso elimina datos del usuario. Todo es UPSERT idempotente.
+# Cada paso tiene timeout para que ningún cuelgue de BD bloquee gunicorn.
 
-set -e
+# NO usamos set -e — preferimos continuar arrancando aunque algún paso falle
 
-echo "▶ Inicializando esquema de BD (tablas nuevas)..."
-flask init-db || echo "  (esquema ya existente)"
+run_with_timeout() {
+  local seconds=$1
+  shift
+  echo "▶ $*"
+  timeout "${seconds}s" "$@"
+  local rc=$?
+  if [ $rc -eq 124 ]; then
+    echo "  ⏱️  TIMEOUT (${seconds}s) — continuamos para no bloquear el arranque"
+  elif [ $rc -ne 0 ]; then
+    echo "  ⚠️  paso falló (rc=$rc) — continuamos"
+  else
+    echo "  ✓ ok"
+  fi
+  return 0
+}
 
-echo "▶ Migrando columnas nuevas (ALTER TABLE seguros)..."
-flask upgrade-schema || echo "  (no hubo cambios)"
-
-echo "▶ Creando admin si no existe..."
-flask create-admin || echo "  (admin ya existe)"
-
-# Carga seeds SIN flag --replace-errors (UPSERT puro).
-# Esto añade los códigos nuevos y actualiza los del catálogo oficial,
-# pero NO borra los que tú hayas creado a mano en la plataforma.
-echo "▶ Cargando/actualizando catálogos (UPSERT, sin borrar datos del usuario)..."
-flask seed-all || echo "  (algo falló en seeds, revisa logs)"
-
-# El dedupe sólo elimina filas con clave duplicada (mismo code/proyecto),
-# preservando el id más bajo. Es seguro.
-echo "▶ Limpiando duplicados..."
-flask dedupe || echo "  (no se pudo deduplicar)"
+run_with_timeout 30 flask init-db
+run_with_timeout 60 flask upgrade-schema
+run_with_timeout 20 flask create-admin
+run_with_timeout 120 flask seed-all
+run_with_timeout 60 flask dedupe
 
 echo "▶ Arrancando Gunicorn en puerto ${PORT:-5000}..."
 exec gunicorn --workers 2 --timeout 120 --bind "0.0.0.0:${PORT:-5000}" wsgi:app
