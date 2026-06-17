@@ -194,96 +194,143 @@ def historial(poliza_id):
 @bp.route("/reporte", methods=["GET"])
 @jwt_required()
 def reporte_html():
-    """Reporte HTML imprimible del día indicado."""
+    """Reporte HTML SEMANAL imprimible: lunes a domingo de la semana que contiene `fecha`."""
     args = request.args
     fecha = _parse_iso_date(args.get("fecha")) or _hoy()
+    # Calcular lunes de la semana ISO que contiene `fecha`
+    iso_dow = fecha.isoweekday()   # 1=Lun .. 7=Dom
+    lunes = fecha - timedelta(days=iso_dow - 1)
+    dias = [lunes + timedelta(days=i) for i in range(7)]
+    dia_labels = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
     polizas = Poliza.query.all()
-    pv = [p for p in polizas if _es_pv(p) and _es_vigente(p)]   # solo PV en garantía vigente
+    pv = [p for p in polizas if _es_pv(p) and _es_vigente(p)]
     revs_all = RevisionSemanal.query.all()
     by_project = {}
     for r in revs_all:
         key = (r.project or "").strip().lower()
         by_project.setdefault(key, []).append(r)
 
-    rows_html = ""
-    counts = {"OK": 0, "Sin comunicación": 0, "Falla": 0, "Falta de datos": 0, "Pendiente": 0}
-    color_for = {
-        "OK": "#dcfce7;color:#166534",
-        "Sin comunicación": "#fef3c7;color:#92400e",
-        "Falla": "#fee2e2;color:#991b1b",
-        "Falta de datos": "#dbeafe;color:#1e40af",
-        "Pendiente": "#f3f4f6;color:#6b7280",
+    estado_color = {
+        "OK":               ("#dcfce7", "#166534", "✓"),
+        "Sin comunicación": ("#fef3c7", "#92400e", "📡"),
+        "Falla":            ("#fee2e2", "#991b1b", "✗"),
+        "Falta de datos":   ("#dbeafe", "#1e40af", "?"),
     }
+    pendiente_style = ("#f3f4f6", "#94a3b8", "—")
+
+    rows_html = ""
+    totals = {"OK": 0, "Sin comunicación": 0, "Falla": 0, "Falta de datos": 0, "Pendiente": 0}
+    revisadas_unicas = 0
+
     for p in sorted(pv, key=lambda x: (x.project or "").lower()):
         key = (p.project or "").strip().lower()
-        r = _rev_for_day(by_project.get(key, []), fecha)
-        estado = r.estado if r else "Pendiente"
-        counts[estado] = counts.get(estado, 0) + 1
-        inc = f'<strong style="color:#dc2626">#{r.incidencia_id}</strong>' if r and r.incidencia_id else "—"
-        obs = (r.observaciones or "") if r else ""
-        rev_by = (r.revisado_por or "") if r else ""
+        revs = by_project.get(key, [])
+        cells = ""
+        tiene_alguna = False
+        for d in dias:
+            r = _rev_for_day(revs, d)
+            if r:
+                bg, fg, icon = estado_color.get(r.estado, pendiente_style)
+                totals[r.estado] = totals.get(r.estado, 0) + 1
+                tooltip = f"{r.estado} · {d.strftime('%d/%m')}"
+                if r.observaciones:
+                    tooltip += f" · {r.observaciones[:60]}"
+                cells += f'<td title="{tooltip}" style="text-align:center;background:{bg};color:{fg};font-weight:700">{icon}</td>'
+                tiene_alguna = True
+            else:
+                totals["Pendiente"] += 1
+                cells += f'<td title="Sin revisar · {d.strftime("%d/%m")}" style="text-align:center;background:#fafbfc;color:#cbd5e1">·</td>'
+        if tiene_alguna:
+            revisadas_unicas += 1
+
+        # Observaciones consolidadas (de cualquier día con observación)
+        notas = []
+        for d in dias:
+            r = _rev_for_day(revs, d)
+            if r and r.observaciones:
+                notas.append(f"{d.strftime('%a %d')}: {r.observaciones[:80]}")
+        notas_txt = " | ".join(notas)[:200]
+
         rows_html += f"""<tr>
-            <td>{p.project or '—'}</td>
-            <td style="font-family:monospace;font-size:10px">{p.code or '—'}</td>
-            <td>{p.platform or '—'}</td>
-            <td>{p.grupo or '—'}</td>
-            <td><span style="padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;background:{color_for.get(estado, '#f3f4f6;color:#6b7280')}">{estado}</span></td>
-            <td>{inc}</td>
-            <td style="font-size:10px;color:#475569">{obs[:120]}</td>
-            <td style="font-size:10px;color:#64748b">{rev_by}</td>
+            <td style="font-weight:600">{p.project or '—'}</td>
+            <td style="font-family:monospace;font-size:10px;color:#64748b">{p.code or '—'}</td>
+            <td style="font-size:10px;color:#64748b">{p.platform or '—'}</td>
+            {cells}
+            <td style="font-size:10px;color:#475569">{notas_txt}</td>
         </tr>"""
 
-    total = len(pv)
-    revisadas = sum(1 for p in pv if _rev_for_day(by_project.get((p.project or "").strip().lower(), []), fecha))
-    pct = round((revisadas / total) * 100, 1) if total else 0
+    total_plantas = len(pv)
+    total_slots = total_plantas * 7
+    completadas = total_slots - totals["Pendiente"]
+    pct = round((completadas / total_slots) * 100, 1) if total_slots else 0
+    con_problema = totals["Sin comunicación"] + totals["Falla"] + totals["Falta de datos"]
+
+    headers_dias = "".join(
+        f'<th style="text-align:center;min-width:42px">{lbl}<br><span style="font-size:9px;opacity:.7;font-weight:400">{d.strftime("%d/%m")}</span></th>'
+        for lbl, d in zip(dia_labels, dias)
+    )
+
+    semana_str = f"{lunes.strftime('%d/%m/%Y')} – {dias[-1].strftime('%d/%m/%Y')}"
+    year_iso, week_iso, _ = lunes.isocalendar()
 
     html = f"""<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><title>Reporte Revisión Diaria — {fecha.isoformat()}</title>
+<html lang="es"><head><meta charset="UTF-8"><title>Reporte Semanal SFV — Semana {week_iso} {year_iso}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:Arial,sans-serif;font-size:12px;color:#1E293B;background:#F8FAFC;padding:0}}
-.page{{max-width:1100px;margin:auto;background:white;padding:0;box-shadow:0 4px 24px rgba(0,0,0,.08)}}
-.cover{{background:linear-gradient(135deg,#1E3A5F 0%,#0EA5E9 100%);padding:32px 40px;color:white}}
+.page{{max-width:1200px;margin:auto;background:white;padding:0;box-shadow:0 4px 24px rgba(0,0,0,.08)}}
+.cover{{background:linear-gradient(135deg,#0B1736 0%,#0033A0 100%);padding:32px 40px;color:white}}
 .cover h1{{font-size:24px;font-weight:800;margin-bottom:6px}}
 .cover p{{opacity:.85;font-size:13px}}
 .kpis{{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:20px 40px;background:#f8fafc}}
 .kpi{{background:white;padding:12px 14px;border-radius:8px;border:1px solid #e2e8f0}}
 .kpi .lbl{{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em}}
 .kpi .val{{font-size:22px;font-weight:800;margin-top:4px}}
-.section{{padding:24px 40px}}
-.section-title{{font-size:14px;font-weight:800;color:#1E3A5F;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #0EA5E9}}
+.section{{padding:18px 40px}}
+.section-title{{font-size:14px;font-weight:800;color:#0B1736;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #0033A0}}
 table{{width:100%;border-collapse:collapse;font-size:11px}}
-th{{background:#1E3A5F;color:white;padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase}}
-td{{padding:6px 10px;border-bottom:1px solid #f1f5f9}}
+th{{background:#0B1736;color:white;padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase}}
+td{{padding:5px 8px;border-bottom:1px solid #f1f5f9}}
 tr:nth-child(even) td{{background:#fafbfc}}
+.legend{{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px}}
+.legend span{{display:inline-flex;align-items:center;gap:5px}}
+.legend i{{display:inline-block;width:14px;height:14px;border-radius:3px;font-style:normal;text-align:center;line-height:14px;font-size:9px;font-weight:700}}
 .actions{{position:fixed;top:20px;right:20px;display:flex;gap:8px;z-index:100}}
-.actions button{{background:#0EA5E9;color:white;border:0;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.2)}}
-@media print{{body{{background:white}}.page{{box-shadow:none;max-width:100%}}.actions{{display:none}}@page{{margin:1cm}}}}
+.actions button{{background:#0033A0;color:white;border:0;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.2)}}
+@media print{{body{{background:white}}.page{{box-shadow:none;max-width:100%}}.actions{{display:none}}@page{{margin:.8cm;size:landscape}}}}
 </style></head>
 <body>
 <div class="actions"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>
 <div class="page">
 <div class="cover">
-  <h1>☀ Reporte Revisión Diaria SFV</h1>
-  <p>{fecha.strftime('%A %d/%m/%Y')} · {total} plantas PV vigentes</p>
+  <h1>☀ Reporte Semanal de Revisión SFV</h1>
+  <p>Semana ISO <strong>{week_iso}</strong> · {semana_str} · {total_plantas} plantas PV vigentes</p>
 </div>
 <div class="kpis">
-  <div class="kpi"><div class="lbl">Total plantas</div><div class="val" style="color:#1E3A5F">{total}</div></div>
-  <div class="kpi"><div class="lbl">Revisadas</div><div class="val" style="color:#0EA5E9">{revisadas}</div></div>
-  <div class="kpi"><div class="lbl">Cumplimiento</div><div class="val" style="color:{'#16A34A' if pct == 100 else '#F59E0B' if pct >= 50 else '#DC2626'}">{pct}%</div></div>
-  <div class="kpi"><div class="lbl">OK</div><div class="val" style="color:#16A34A">{counts.get('OK', 0)}</div></div>
-  <div class="kpi"><div class="lbl">Con problema</div><div class="val" style="color:#DC2626">{counts.get('Sin comunicación', 0) + counts.get('Falla', 0) + counts.get('Falta de datos', 0)}</div></div>
+  <div class="kpi"><div class="lbl">Plantas</div><div class="val" style="color:#0B1736">{total_plantas}</div></div>
+  <div class="kpi"><div class="lbl">Revisiones</div><div class="val" style="color:#0033A0">{completadas} / {total_slots}</div></div>
+  <div class="kpi"><div class="lbl">Cumplimiento</div><div class="val" style="color:{'#16A34A' if pct >= 90 else '#F59E0B' if pct >= 50 else '#DC2626'}">{pct}%</div></div>
+  <div class="kpi"><div class="lbl">OK</div><div class="val" style="color:#16A34A">{totals.get('OK', 0)}</div></div>
+  <div class="kpi"><div class="lbl">Con problema</div><div class="val" style="color:#DC2626">{con_problema}</div></div>
 </div>
 <div class="section">
-  <div class="section-title">📋 Detalle por planta</div>
+  <div class="section-title">📋 Matriz semanal por planta</div>
   <table>
     <thead><tr>
-      <th>Proyecto</th><th>Código</th><th>Plataforma</th><th>Cliente</th>
-      <th>Estado</th><th>Incidencia</th><th>Observaciones</th><th>Revisó</th>
+      <th>Proyecto</th><th>Código</th><th>Plataforma</th>
+      {headers_dias}
+      <th>Observaciones</th>
     </tr></thead>
-    <tbody>{rows_html or '<tr><td colspan="8" style="text-align:center;color:#94a3b8">Sin plantas.</td></tr>'}</tbody>
+    <tbody>{rows_html or '<tr><td colspan="11" style="text-align:center;color:#94a3b8">Sin plantas.</td></tr>'}</tbody>
   </table>
+  <div class="legend">
+    <span><i style="background:#dcfce7;color:#166534">✓</i> OK</span>
+    <span><i style="background:#fef3c7;color:#92400e">📡</i> Sin comunicación</span>
+    <span><i style="background:#fee2e2;color:#991b1b">✗</i> Falla</span>
+    <span><i style="background:#dbeafe;color:#1e40af">?</i> Falta de datos</span>
+    <span><i style="background:#fafbfc;color:#cbd5e1">·</i> Sin revisar</span>
+  </div>
 </div>
 </div></body></html>"""
     return Response(html, mimetype="text/html")

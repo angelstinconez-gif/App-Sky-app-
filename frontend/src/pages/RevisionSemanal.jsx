@@ -347,7 +347,7 @@ export default function RevisionSemanal() {
             <LayoutGrid size={14} /> {showHeatmap ? 'Ocultar' : 'Mostrar'} mini calendario
           </button>
           <button className="btn btn-sm btn-primary" onClick={openReporteHTML}>
-            <FileText size={14} /> Reporte del día
+            <FileText size={14} /> Reporte semanal
           </button>
           <button className="btn btn-sm" onClick={() => downloadXLSX(filtered, 'RevisionDiaria', `revision_${fecha}.xlsx`)}>
             <Download size={14} /> Excel
