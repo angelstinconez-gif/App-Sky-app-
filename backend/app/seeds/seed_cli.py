@@ -225,6 +225,45 @@ def register_seed_cli(app):
                 "ALTER TABLE users ADD COLUMN ai_enabled BOOLEAN DEFAULT FALSE"
             ))
 
+            # ── Drop UNIQUE constraint legacy (project, year, week) ──
+            # Ya no aplica porque ahora guardamos una revisión por DÍA.
+            def _drop_uq_proj_year_week():
+                if not insp.has_table("revisiones_semanales"):
+                    return
+                with db.engine.begin() as conn:
+                    for stmt in [
+                        # Postgres
+                        "ALTER TABLE revisiones_semanales DROP CONSTRAINT IF EXISTS uq_proj_year_week",
+                        # MySQL/MariaDB
+                        "ALTER TABLE revisiones_semanales DROP INDEX uq_proj_year_week",
+                    ]:
+                        try:
+                            conn.execute(text(stmt))
+                            click.echo("  🗑️  Constraint uq_proj_year_week eliminada")
+                            return
+                        except Exception:
+                            continue
+            _try("drop uq_proj_year_week", _drop_uq_proj_year_week)
+
+            # ── Añadir UNIQUE por día (project, fecha) ──
+            def _add_uq_proj_fecha():
+                if not insp.has_table("revisiones_semanales"):
+                    return
+                # Comprobar si ya existe
+                idxs = insp.get_unique_constraints("revisiones_semanales")
+                if any(c.get("name") == "uq_proj_fecha" for c in idxs):
+                    return
+                with db.engine.begin() as conn:
+                    try:
+                        conn.execute(text(
+                            "ALTER TABLE revisiones_semanales "
+                            "ADD CONSTRAINT uq_proj_fecha UNIQUE (project, fecha)"
+                        ))
+                        click.echo("  ➕ UNIQUE (project, fecha) añadida")
+                    except Exception as e:
+                        click.echo(f"  ⚠️  No se pudo añadir UNIQUE (project, fecha): {e}")
+            _try("add uq_proj_fecha", _add_uq_proj_fecha)
+
             click.echo("✅ upgrade-schema completado.")
 
     @app.cli.command("create-admin")
