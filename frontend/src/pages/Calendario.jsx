@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { eventosApi, mantenimientoApi, incidenciasApi, ticketsApi, polizasApi } from '../api/endpoints';
 import { fmtDate } from '../utils/format';
 import Modal from '../components/Modal';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../components/Toast';
 
 const VIEWS = [
   { id: 'day', label: 'Día' },
@@ -14,16 +12,12 @@ const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 
 
 const TYPE_FILTERS = [
   { id: 'mantenimiento', label: 'Mantenimientos', color: '#f59e0b' },
-  { id: 'ticket',        label: 'Tickets',        color: '#0EA5E9' },
-  { id: 'incidencia',    label: 'Incidencias',    color: '#e11d48' },
-  { id: 'evento',        label: 'Eventos / avisos', color: '#8b5cf6' },
+  { id: 'ticket',        label: 'Tickets',        color: '#0033A0' },
+  { id: 'incidencia',    label: 'Incidencias',    color: '#dc2626' },
+  { id: 'evento',        label: 'Eventos / avisos', color: '#7c3aed' },
 ];
 
 export default function Calendario() {
-  const { hasRole } = useAuth();
-  const toast = useToast();
-  const canSchedule = hasRole('admin', 'operator');
-
   const [view, setView] = useState('month');
   const [cursor, setCursor] = useState(() => new Date());
   const [activeTypes, setActiveTypes] = useState(() => TYPE_FILTERS.map((t) => t.id));
@@ -35,20 +29,16 @@ export default function Calendario() {
   const [polizas, setPolizas] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal: agendar nuevo (ticket o mantenimiento)
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({
-    kind: 'ticket', date: '', title: '', project: '', code: '', priority: 'Intermedia',
-    tipo: 'Preventivo', cuadrilla: '', notes: '',
-  });
-
-  // Modal: detalle de evento seleccionado
+  // Modal: detalle de un evento (ticket, mantenimiento, etc.)
   const [detailItem, setDetailItem] = useState(null);
+
+  // Modal: detalle de un DÍA completo (lista de todos los eventos de ese día)
+  const [dayDetail, setDayDetail] = useState(null);   // { iso, items: [...] }
 
   const toggleType = (id) =>
     setActiveTypes((arr) => arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
-  // Carga datos del año actual (cubre vista año, mes y día)
+  // Carga datos del año actual
   useEffect(() => {
     const y = cursor.getFullYear();
     const start = `${y}-01-01`;
@@ -69,61 +59,6 @@ export default function Calendario() {
 
   useEffect(() => { polizasApi.list().then(setPolizas).catch(() => {}); }, []);
 
-  // ── Auto-fill al teclear proyecto/código en el modal agendar ──
-  const onScheduleProject = (val) => {
-    setScheduleForm((f) => ({ ...f, project: val }));
-    const p = polizas.find((x) =>
-      x.project?.toLowerCase() === val.toLowerCase() ||
-      x.code?.toLowerCase() === val.toLowerCase()
-    );
-    if (p) setScheduleForm((f) => ({ ...f, project: p.project, code: p.code || f.code }));
-  };
-
-  const onSaveSchedule = async () => {
-    const { kind, date, title, project, code, priority, tipo, cuadrilla, notes } = scheduleForm;
-    if (!date) return toast('Falta la fecha', 'error');
-    if (!project && !title) return toast('Indica proyecto o título', 'error');
-    try {
-      if (kind === 'ticket') {
-        await ticketsApi.create({
-          title: title || `Visita — ${project}`,
-          site: project, projectCode: code, priority,
-          status: 'Abierto',
-          openDate: new Date().toISOString().slice(0, 10),
-          dueDate: date,
-          description: notes,
-        });
-        toast(`Ticket programado para ${date}`);
-      } else {
-        await mantenimientoApi.create({
-          project, code, tipo, cuadrilla,
-          fechaProgramada: date, estado: 'Programado',
-          descripcion: notes,
-        });
-        toast(`Mantenimiento programado para ${date}`);
-      }
-      setScheduleOpen(false);
-      // Recargar datos
-      const y = cursor.getFullYear();
-      const start = `${y}-01-01`, end = `${y}-12-31`;
-      Promise.all([
-        eventosApi.list({ start, end }).catch(() => []),
-        mantenimientoApi.list().catch(() => []),
-        ticketsApi.list().catch(() => []),
-        incidenciasApi.list().catch(() => []),
-      ]).then(([ev, mt, tk, inc]) => {
-        setEvents(ev || []); setMants(mt || []); setTks(tk || []); setIncs(inc || []);
-      });
-    } catch (e) {
-      toast(e?.response?.data?.message || 'Error al agendar', 'error');
-    }
-  };
-
-  const openSchedule = (iso, kind = 'ticket') => {
-    setScheduleForm((f) => ({ ...f, kind, date: iso || new Date().toISOString().slice(0, 10) }));
-    setScheduleOpen(true);
-  };
-
   // Normaliza todos en {id, date, title, type, color, project, tooltip, raw}
   const allItems = useMemo(() => {
     const ms = mants.map((m) => ({
@@ -133,7 +68,8 @@ export default function Calendario() {
       project: m.project || m.proyecto || '',
       type: 'mantenimiento',
       color: m.estado === 'Ejecutado' ? '#16a34a' : '#f59e0b',
-      tooltip: `🔧 ${m.tipo || 'Mantenimiento'}\nProyecto: ${m.project || m.proyecto || '—'}\nEstado: ${m.estado || '—'}\nCuadrilla: ${m.cuadrilla || '—'}\nResponsable: ${m.responsable || '—'}`,
+      tooltip: `🔧 ${m.tipo || 'Mantenimiento'}\nProyecto: ${m.project || m.proyecto || '—'}\nEstado: ${m.estado || '—'}\nCuadrilla: ${m.cuadrilla || '—'}\nResponsable: ${m.responsable || '—'}` +
+               (m.descripcion ? `\n\nDescripción:\n${m.descripcion}` : ''),
       raw: m,
     })).filter((x) => x.date);
     const tt = tks.map((t) => ({
@@ -142,8 +78,9 @@ export default function Calendario() {
       title: `#${t.id} ${t.title || ''}`,
       project: t.site || '',
       type: 'ticket',
-      color: t.status === 'Cerrado' ? '#16a34a' : '#0EA5E9',
-      tooltip: `🎫 Ticket #${t.id}\n${t.title || ''}\nProyecto: ${t.site || '—'}\nPrioridad: ${t.priority || '—'}\nEstado: ${t.status || '—'}\nAsignado: ${t.assignedTo || '—'}\nApertura: ${t.openDate || '—'}\nCompromiso: ${t.dueDate || '—'}`,
+      color: t.status === 'Cerrado' ? '#16a34a' : '#0033A0',
+      tooltip: `🎫 Ticket #${t.id}\n${t.title || ''}\nProyecto: ${t.site || '—'}\nPrioridad: ${t.priority || '—'}\nEstado: ${t.status || '—'}\nAsignado: ${t.assignedTo || '—'}\nApertura: ${t.openDate || '—'}\nCompromiso: ${t.dueDate || '—'}` +
+               (t.description ? `\n\nDescripción:\n${t.description}` : ''),
       raw: t,
     })).filter((x) => x.date);
     const ii = incs.map((i) => ({
@@ -152,13 +89,13 @@ export default function Calendario() {
       title: `${i.site || ''} — ${i.problem || i.errCode || ''}`,
       project: i.site || '',
       type: 'incidencia',
-      color: i.status === 'cerrada' ? '#16a34a' : '#e11d48',
+      color: i.status === 'cerrada' ? '#16a34a' : '#dc2626',
       tooltip: `⚠️ Incidencia #${i.id}\nProyecto: ${i.site || '—'}\nCliente: ${i.client || '—'}\nPlataforma: ${i.platform || '—'}\nCódigo error: ${i.errCode || '—'}\nProblema: ${i.problem || '—'}\nPrioridad: ${i.priority || '—'}\nEstado: ${i.status || '—'}`,
       raw: i,
     })).filter((x) => x.date);
     const ee = events.map((e) => ({
       id: `e-${e.id}`, date: e.eventDate, title: e.title,
-      project: e.project || '', type: 'evento', color: e.color || '#8b5cf6',
+      project: e.project || '', type: 'evento', color: e.color || '#7c3aed',
       tooltip: `📅 ${e.title}\nFecha: ${e.eventDate}\nTipo: ${e.eventType || 'evento'}`,
       raw: e,
     }));
@@ -168,7 +105,7 @@ export default function Calendario() {
     return all.filter((x) => (x.project || '').toLowerCase().includes(q));
   }, [events, mants, tks, incs, activeTypes, projectFilter]);
 
-  // Lista única de proyectos (de pólizas + de items) para el datalist
+  // Lista única de proyectos para datalist
   const projectsList = useMemo(() => {
     const set = new Set();
     polizas.forEach((p) => p.project && set.add(p.project));
@@ -185,6 +122,13 @@ export default function Calendario() {
   const navMonth = (d) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + d, 1));
   const navYear = (d) => setCursor(new Date(cursor.getFullYear() + d, cursor.getMonth(), 1));
 
+  // Al hacer click en un día del mes: abre modal con todos los eventos del día
+  const openDayDetail = (iso) => {
+    if (!iso) return;
+    const items = allItems.filter((e) => e.date === iso);
+    setDayDetail({ iso, items });
+  };
+
   const yearOptions = [];
   const thisYear = new Date().getFullYear();
   for (let y = thisYear - 3; y <= thisYear + 5; y++) yearOptions.push(y);
@@ -193,13 +137,16 @@ export default function Calendario() {
     <div>
       <div className="section-header">
         <h2>Calendario</h2>
+        <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>
+          {allItems.length} eventos · solo consulta
+        </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 0, border: '1px solid var(--gray-200, #e5e7eb)', borderRadius: 6, overflow: 'hidden' }}>
             {VIEWS.map((v) => (
               <button key={v.id} className="btn btn-sm"
                 style={{
                   borderRadius: 0, border: 'none',
-                  background: view === v.id ? 'var(--sky, #0EA5E9)' : 'transparent',
+                  background: view === v.id ? 'var(--sky, #0033A0)' : 'transparent',
                   color: view === v.id ? '#fff' : 'inherit',
                 }}
                 onClick={() => setView(v.id)}>{v.label}</button>
@@ -215,15 +162,10 @@ export default function Calendario() {
           {view === 'month' && <><button className="btn btn-sm" onClick={() => navMonth(-1)}>‹</button><button className="btn btn-sm" onClick={() => navMonth(1)}>›</button></>}
           {view === 'year' && <><button className="btn btn-sm" onClick={() => navYear(-1)}>‹</button><button className="btn btn-sm" onClick={() => navYear(1)}>›</button></>}
           <button className="btn btn-sm" onClick={() => setCursor(new Date())}>Hoy</button>
-          {canSchedule && (
-            <button className="btn btn-sm btn-primary" onClick={() => openSchedule(null, 'ticket')}>
-              + Agendar
-            </button>
-          )}
         </div>
       </div>
 
-      {/* ── Buscador por proyecto ── */}
+      {/* Buscador por proyecto */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0 12px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>🔍 Filtrar por proyecto:</span>
         <input
@@ -242,7 +184,7 @@ export default function Calendario() {
         )}
       </div>
 
-      {/* ── Filtros por tipo (chips) ── */}
+      {/* Filtros por tipo (chips) */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '8px 0 16px' }}>
         <span style={{ fontSize: 12, color: 'var(--gray-500)', alignSelf: 'center' }}>Mostrar:</span>
         {TYPE_FILTERS.map((t) => {
@@ -271,16 +213,12 @@ export default function Calendario() {
       </div>
 
       {loading ? <div className="empty"><span className="spinner" /></div> : (
-        view === 'month' ? <MonthView cursor={cursor} items={allItems} canSchedule={canSchedule}
-          onDayClick={(iso) => openSchedule(iso, 'ticket')}
+        view === 'month' ? <MonthView cursor={cursor} items={allItems}
+          onDayClick={openDayDetail}
           onItemClick={(it) => setDetailItem(it)} /> :
         view === 'year' ? <YearView cursor={cursor} items={allItems} onPick={onMonthSelect} /> :
-        <DayView cursor={cursor} items={allItems} canSchedule={canSchedule}
-          onItemClick={(it) => setDetailItem(it)}
-          onSchedule={(kind) => openSchedule(
-            `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
-            kind
-          )} />
+        <DayView cursor={cursor} items={allItems}
+          onItemClick={(it) => setDetailItem(it)} />
       )}
 
       <div style={{ marginTop: 20 }}>
@@ -294,7 +232,7 @@ export default function Calendario() {
                 .sort((a, b) => a.date.localeCompare(b.date))
                 .slice(0, 20)
                 .map((e) => (
-                  <tr key={e.id}>
+                  <tr key={e.id} onClick={() => setDetailItem(e)} style={{ cursor: 'pointer' }}>
                     <td>{fmtDate(e.date)}</td>
                     <td><span style={{ background: e.color, color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10 }}>{e.type}</span></td>
                     <td>{e.title}</td>
@@ -304,6 +242,71 @@ export default function Calendario() {
           </table>
         </div>
       </div>
+
+      {/* ── Modal: Detalle del DÍA (lista de todos los eventos de ese día) ── */}
+      <Modal
+        open={!!dayDetail} onClose={() => setDayDetail(null)}
+        title={dayDetail ? `📅 ${new Date(dayDetail.iso + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+        wide
+        footer={<button className="btn btn-primary" onClick={() => setDayDetail(null)}>Cerrar</button>}
+      >
+        {dayDetail && (
+          <div>
+            {dayDetail.items.length === 0 ? (
+              <div className="empty" style={{ padding: 30 }}>
+                Sin eventos para este día.
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap',
+                  paddingBottom: 10, borderBottom: '1px solid var(--gray-200)',
+                }}>
+                  {TYPE_FILTERS.map((t) => {
+                    const cnt = dayDetail.items.filter((i) => i.type === t.id).length;
+                    if (cnt === 0) return null;
+                    return (
+                      <span key={t.id} style={{
+                        background: `${t.color}15`, color: t.color,
+                        padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+                      }}>
+                        {cnt} {t.label}
+                      </span>
+                    );
+                  })}
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {dayDetail.items.map((e) => (
+                    <li key={e.id}
+                      onClick={() => { setDetailItem(e); setDayDetail(null); }}
+                      style={{
+                        padding: 12, marginBottom: 8, borderRadius: 8,
+                        borderLeft: `4px solid ${e.color}`,
+                        background: 'var(--gray-50, #f9fafb)',
+                        cursor: 'pointer',
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{
+                          background: e.color, color: '#fff',
+                          padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                        }}>{e.type}</span>
+                        <strong style={{ fontSize: 13 }}>{e.title}</strong>
+                      </div>
+                      {e.tooltip && (
+                        <pre style={{
+                          fontSize: 11, color: 'var(--gray-600)', marginTop: 4,
+                          fontFamily: 'inherit', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                          margin: 0,
+                        }}>{e.tooltip}</pre>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ── Modal: Detalle del evento seleccionado ── */}
       <Modal
@@ -343,96 +346,14 @@ export default function Calendario() {
             <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--gray-700)' }}>
               {detailItem.tooltip}
             </div>
-            {detailItem.raw && (
-              <details style={{ marginTop: 14, fontSize: 11, color: 'var(--gray-500)' }}>
-                <summary style={{ cursor: 'pointer' }}>Ver datos completos (JSON)</summary>
-                <pre style={{
-                  fontSize: 10, padding: 8, background: 'var(--gray-100)', borderRadius: 4,
-                  marginTop: 6, overflow: 'auto', maxHeight: 220,
-                }}>
-                  {JSON.stringify(detailItem.raw, null, 2)}
-                </pre>
-              </details>
-            )}
           </div>
         )}
-      </Modal>
-
-      {/* ── Modal: Agendar ticket o mantenimiento ── */}
-      <Modal
-        open={scheduleOpen} onClose={() => setScheduleOpen(false)}
-        title={`Agendar ${scheduleForm.kind === 'ticket' ? 'ticket' : 'mantenimiento'}`}
-        footer={
-          <>
-            <button className="btn" onClick={() => setScheduleOpen(false)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={onSaveSchedule}>Programar</button>
-          </>
-        }
-      >
-        <div className="form-grid">
-          <div className="form-row">
-            <label>Tipo</label>
-            <select value={scheduleForm.kind} onChange={(e) => setScheduleForm({ ...scheduleForm, kind: e.target.value })}>
-              <option value="ticket">🎫 Ticket de visita</option>
-              <option value="mantenimiento">🔧 Mantenimiento programado</option>
-            </select>
-          </div>
-          <div className="form-row">
-            <label>Fecha *</label>
-            <input type="date" value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
-          </div>
-          <div className="form-row full">
-            <label>Proyecto / Planta *</label>
-            <input list="sch-projects" value={scheduleForm.project}
-              onChange={(e) => onScheduleProject(e.target.value)}
-              placeholder="Empieza a escribir el proyecto..." />
-            <datalist id="sch-projects">
-              {projectsList.map((p) => <option key={p} value={p} />)}
-            </datalist>
-          </div>
-          <div className="form-row">
-            <label>Código (auto)</label>
-            <input value={scheduleForm.code} readOnly className="readonly-auto" />
-          </div>
-          {scheduleForm.kind === 'ticket' ? (
-            <>
-              <div className="form-row">
-                <label>Título</label>
-                <input value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
-                  placeholder={`Visita — ${scheduleForm.project || 'proyecto'}`} />
-              </div>
-              <div className="form-row">
-                <label>Prioridad</label>
-                <select value={scheduleForm.priority} onChange={(e) => setScheduleForm({ ...scheduleForm, priority: e.target.value })}>
-                  {['Critico', 'Alta', 'Intermedia', 'Baja'].map((p) => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="form-row">
-                <label>Tipo de mantto</label>
-                <select value={scheduleForm.tipo} onChange={(e) => setScheduleForm({ ...scheduleForm, tipo: e.target.value })}>
-                  {['Preventivo', 'Correctivo', 'Predictivo', 'Inspección'].map((t) => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="form-row">
-                <label>Cuadrilla</label>
-                <input value={scheduleForm.cuadrilla} onChange={(e) => setScheduleForm({ ...scheduleForm, cuadrilla: e.target.value })} />
-              </div>
-            </>
-          )}
-          <div className="form-row full">
-            <label>Notas / descripción</label>
-            <textarea rows="3" value={scheduleForm.notes} onChange={(e) => setScheduleForm({ ...scheduleForm, notes: e.target.value })} />
-          </div>
-        </div>
       </Modal>
     </div>
   );
 }
 
-function MonthView({ cursor, items, canSchedule, onDayClick, onItemClick }) {
+function MonthView({ cursor, items, onDayClick, onItemClick }) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
@@ -458,15 +379,16 @@ function MonthView({ cursor, items, canSchedule, onDayClick, onItemClick }) {
         ))}
         {cells.map((cell, i) => (
           <div key={i}
-            onClick={() => canSchedule && cell.iso && onDayClick && onDayClick(cell.iso)}
+            onClick={() => cell.iso && onDayClick && onDayClick(cell.iso)}
             style={{
               minHeight: 90, padding: 6, borderRadius: 8,
               background: cell.isCurrentMonth ? 'var(--gray-50)' : 'transparent',
               opacity: cell.isCurrentMonth ? 1 : 0.4,
-              border: cell.iso === today ? '2px solid var(--sky, #0EA5E9)' : '1px solid var(--gray-100)',
-              cursor: canSchedule && cell.iso ? 'pointer' : 'default',
+              border: cell.iso === today ? '2px solid var(--sky, #0033A0)' : '1px solid var(--gray-100)',
+              cursor: cell.iso ? 'pointer' : 'default',
+              transition: 'all .15s',
             }}
-            title={canSchedule && cell.iso ? `Click para agendar el ${cell.iso}` : ''}
+            title={cell.iso ? `Click para ver eventos del ${cell.iso}` : ''}
           >
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>{cell.day}</div>
             {cell.events.slice(0, 3).map((e) => (
@@ -483,7 +405,7 @@ function MonthView({ cursor, items, canSchedule, onDayClick, onItemClick }) {
                 {e.title}
               </div>
             ))}
-            {cell.events.length > 3 && <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>+{cell.events.length - 3} más</div>}
+            {cell.events.length > 3 && <div style={{ fontSize: 10, color: 'var(--gray-500)', fontWeight: 600 }}>+{cell.events.length - 3} más</div>}
           </div>
         ))}
       </div>
@@ -524,7 +446,7 @@ function MiniMonth({ year, month, items }) {
       {cells.map((c, i) => (
         <div key={i} style={{
           height: 14, borderRadius: 3, fontSize: 8, textAlign: 'center', lineHeight: '14px',
-          background: c?.has ? 'var(--sky, #0EA5E9)' : c ? 'var(--gray-100, #f3f4f6)' : 'transparent',
+          background: c?.has ? 'var(--sky, #0033A0)' : c ? 'var(--gray-100, #f3f4f6)' : 'transparent',
           color: c?.has ? '#fff' : 'var(--gray-500)',
         }}>{c?.d || ''}</div>
       ))}
@@ -532,46 +454,54 @@ function MiniMonth({ year, month, items }) {
   );
 }
 
-function DayView({ cursor, items, canSchedule, onSchedule, onItemClick }) {
+function DayView({ cursor, items, onItemClick }) {
   const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
   const todays = items.filter((e) => e.date === iso);
+  const byType = TYPE_FILTERS.map((t) => ({
+    ...t,
+    items: todays.filter((x) => x.type === t.id),
+  })).filter((g) => g.items.length > 0);
+
   return (
     <div className="table-wrap" style={{ padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>{cursor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
-        {canSchedule && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm btn-primary" onClick={() => onSchedule('ticket')}>+ Ticket</button>
-            <button className="btn btn-sm" onClick={() => onSchedule('mantenimiento')}>+ Mantenimiento</button>
-          </div>
-        )}
-      </div>
+      <h3 style={{ marginTop: 0, marginBottom: 14 }}>
+        {cursor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      </h3>
       {todays.length === 0 ? (
         <div className="empty">Sin eventos para este día (según los filtros activos).</div>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {todays.map((e) => (
-            <li key={e.id}
-              title={e.tooltip || e.title}
-              onClick={() => onItemClick && onItemClick(e)}
-              style={{
-                padding: 10, marginBottom: 6, borderRadius: 8,
-                borderLeft: `4px solid ${e.color}`, background: 'var(--gray-50, #f9fafb)',
-                cursor: 'pointer',
-              }}>
-              <div>
-                <strong>{e.title}</strong>
-                <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--gray-500)' }}>· {e.type}</span>
-              </div>
-              {e.tooltip && (
-                <pre style={{
-                  fontSize: 11, color: 'var(--gray-600)', marginTop: 4,
-                  fontFamily: 'inherit', whiteSpace: 'pre-wrap', lineHeight: 1.4,
-                }}>{e.tooltip}</pre>
-              )}
-            </li>
-          ))}
-        </ul>
+        byType.map((g) => (
+          <div key={g.id} style={{ marginBottom: 16 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: g.color, textTransform: 'uppercase',
+              letterSpacing: '.05em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: g.color, display: 'inline-block' }} />
+              {g.label} ({g.items.length})
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {g.items.map((e) => (
+                <li key={e.id}
+                  onClick={() => onItemClick && onItemClick(e)}
+                  style={{
+                    padding: 10, marginBottom: 6, borderRadius: 8,
+                    borderLeft: `4px solid ${e.color}`, background: 'var(--gray-50, #f9fafb)',
+                    cursor: 'pointer',
+                  }}>
+                  <div>
+                    <strong>{e.title}</strong>
+                  </div>
+                  {e.tooltip && (
+                    <pre style={{
+                      fontSize: 11, color: 'var(--gray-600)', marginTop: 4,
+                      fontFamily: 'inherit', whiteSpace: 'pre-wrap', lineHeight: 1.4, margin: 0,
+                    }}>{e.tooltip}</pre>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
       )}
     </div>
   );
