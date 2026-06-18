@@ -104,6 +104,45 @@ def add_garantias_creado_por():
     return jsonify(success=True, results=results)
 
 
+@bp.route("/reset-admin-password", methods=["POST", "GET"])
+def reset_admin_password():
+    """Resetea la password del admin usando una clave secreta del env var.
+    NO requiere JWT — pensado para cuando no puedes entrar.
+
+    Body o query: { secret, email, new_password }
+    El 'secret' debe coincidir con la env var RESET_SECRET de Render.
+    Si la env var no está configurada, el endpoint está deshabilitado.
+    """
+    import os
+    from app.models.user import User
+    expected_secret = os.environ.get("RESET_SECRET")
+    if not expected_secret:
+        return jsonify(
+            error="disabled",
+            message="Configura la env var RESET_SECRET en Render para habilitar este endpoint."
+        ), 403
+
+    data = request.get_json(silent=True) or request.args.to_dict()
+    secret = data.get("secret")
+    email = (data.get("email") or "").strip().lower()
+    new_password = data.get("new_password") or data.get("password")
+
+    if secret != expected_secret:
+        return jsonify(error="bad_secret", message="Secret incorrecto"), 403
+    if not email or not new_password:
+        return jsonify(error="missing", message="Se requiere email y new_password"), 400
+    if len(new_password) < 6:
+        return jsonify(error="weak", message="Mínimo 6 caracteres"), 400
+
+    u = User.query.filter_by(email=email).first()
+    if not u:
+        return jsonify(error="not_found", message=f"Usuario {email} no existe"), 404
+
+    u.set_password(new_password)
+    db.session.commit()
+    return jsonify(success=True, message=f"Password reseteada para {email}")
+
+
 @bp.route("/dedupe-garantias", methods=["POST"])
 @jwt_required()
 @role_required("admin")

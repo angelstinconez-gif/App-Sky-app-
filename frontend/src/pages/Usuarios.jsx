@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { usersApi } from '../api/endpoints';
+import api from '../api/client';
 import { fmtDateTime, downloadXLSX } from '../utils/format';
 
 const ROLES = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
@@ -145,12 +146,127 @@ export default function Usuarios() {
     },
   ], [canWrite]);
 
+  const onFixBD = async () => {
+    if (!await window.skyConfirm(
+      'Va a eliminar el constraint legacy "uq_proj_year_week" de la base de datos. ' +
+      'Esto es necesario para poder guardar revisiones diarias.\n\n¿Continuar?'
+    )) return;
+    try {
+      const r = await api.post('/admin-fix/drop-uq-proj-year-week');
+      const ok = r.data?.success;
+      if (ok) {
+        await window.skyAlert(
+          '✓ Constraint eliminado correctamente.\n\n' +
+          'Ya puedes guardar revisiones diarias sin error.'
+        );
+      } else {
+        await window.skyAlert('⚠️ No se pudo eliminar el constraint o ya no existía.');
+      }
+    } catch (e) {
+      await window.skyAlert('Error: ' + (e?.response?.data?.message || e.message));
+    }
+  };
+
+  // ── Descargar respaldo JSON ──
+  const onBackupDownload = async () => {
+    try {
+      // 1) Primero pedimos stats para mostrar cuántas filas
+      const stats = await api.get('/backup/stats');
+      const total = stats.data?.total || 0;
+      if (!await window.skyConfirm(
+        `Vas a descargar un respaldo JSON con TODAS las tablas.\n\n` +
+        `Total de filas a respaldar: ${total}\n\n` +
+        `El archivo se guardará en tu carpeta Descargas.\n¿Continuar?`
+      )) return;
+      // 2) Descargar el binario
+      const r = await api.get('/backup/download', { responseType: 'blob' });
+      const blob = new Blob([r.data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const fecha = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+      a.download = `skysense_backup_${fecha}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('✓ Respaldo descargado');
+    } catch (e) {
+      await window.skyAlert('Error al descargar: ' + (e?.response?.data?.message || e.message));
+    }
+  };
+
+  // ── Restaurar desde archivo JSON ──
+  const onBackupRestore = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const wipe = await window.skyConfirm(
+        `¿Quieres que se VACÍEN las tablas antes de restaurar?\n\n` +
+        `· SÍ (Confirmar) = sobrescribe TODO con el contenido del archivo\n` +
+        `· NO (Cancelar) = fusiona (mantiene lo existente y añade/actualiza por ID)`
+      );
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const r = await api.post(`/backup/restore?wipe=${wipe ? 1 : 0}`,
+          fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const lines = [];
+        for (const [tbl, res] of Object.entries(r.data?.resultados || {})) {
+          if (typeof res === 'object' && res.insertadas !== undefined) {
+            lines.push(`${tbl}: +${res.insertadas} ↻${res.actualizadas}${res.erroneas ? ` ⚠${res.erroneas}` : ''}`);
+          } else {
+            lines.push(`${tbl}: ${res}`);
+          }
+        }
+        await window.skyAlert(
+          `✓ Restauración completa (wipe=${wipe ? 'SÍ' : 'NO'})\n\n${lines.join('\n')}`
+        );
+        load();
+      } catch (e) {
+        await window.skyAlert('Error al restaurar: ' + (e?.response?.data?.message || e.message));
+      }
+    };
+    input.click();
+  };
+
   return (
     <div>
       <div className="section-header">
         <h2>Usuarios</h2>
         <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{items.length} registros</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {canWrite && (
+            <>
+              <button
+                className="btn btn-sm"
+                onClick={onBackupDownload}
+                title="Descarga un respaldo JSON completo de la BD"
+                style={{ background: '#dcfce7', color: '#166534', borderColor: '#86efac', fontWeight: 600 }}
+              >
+                💾 Respaldar BD
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={onBackupRestore}
+                title="Sube un archivo JSON de respaldo para restaurar la BD"
+                style={{ background: '#dbeafe', color: '#1e40af', borderColor: '#93c5fd', fontWeight: 600 }}
+              >
+                📤 Restaurar BD
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={onFixBD}
+                title="Elimina el constraint legacy que impedía guardar revisiones diarias"
+                style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a', fontWeight: 600 }}
+              >
+                🔧 Fix BD
+              </button>
+            </>
+          )}
           <button className="btn btn-sm" onClick={() => downloadXLSX(items, 'Usuarios', `usuarios_${Date.now()}.xlsx`)}>⬇ Exportar</button>
           {canWrite && <button className="btn btn-sm btn-primary" onClick={onNew}>+ Nuevo</button>}
         </div>

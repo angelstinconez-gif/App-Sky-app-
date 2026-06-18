@@ -77,6 +77,7 @@ def create_app(config_class="config.Config"):
     from app.routes.revisiones_semanales import bp as revsem_bp
     from app.routes.asistente import bp as asistente_bp
     from app.routes.admin_fix import bp as admin_fix_bp
+    from app.routes.backup import bp as backup_bp
 
     app.register_blueprint(auth_bp,         url_prefix="/api/auth")
     app.register_blueprint(users_bp,        url_prefix="/api/users")
@@ -105,6 +106,7 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(revsem_bp,       url_prefix="/api/revisiones-semanales")
     app.register_blueprint(asistente_bp,    url_prefix="/api/asistente")
     app.register_blueprint(admin_fix_bp,    url_prefix="/api/admin-fix")
+    app.register_blueprint(backup_bp,       url_prefix="/api/backup")
 
     # ── CLI: seed ──
     from app.seeds.seed_cli import register_seed_cli

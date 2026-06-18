@@ -14,6 +14,38 @@ from app.utils.parse import parse_date, parse_int, parse_str
 
 bp = Blueprint("incidencias", __name__)
 
+# Flag de proceso para auto-dedupe
+_dedupe_done = False
+
+
+def _auto_dedupe_incidencias_once():
+    """Elimina incidencias duplicadas por (site, problem, err_code) la primera vez.
+    Conserva el id más bajo. Silencioso."""
+    global _dedupe_done
+    if _dedupe_done:
+        return 0
+    _dedupe_done = True
+    try:
+        def _n(s): return (s or "").strip().lower()
+        seen, to_del = set(), 0
+        for i in Incidencia.query.order_by(Incidencia.id.asc()).all():
+            k = (_n(i.site), _n(i.problem), _n(i.err_code))
+            if all(not x for x in k):
+                continue
+            if k in seen:
+                db.session.delete(i)
+                to_del += 1
+            else:
+                seen.add(k)
+        if to_del:
+            db.session.commit()
+            print(f"🧹 Auto-dedupe incidencias: {to_del} duplicados eliminados")
+        return to_del
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️  Auto-dedupe incidencias falló: {e}")
+        return 0
+
 
 def _notify_admin_if_not_admin(action, inc):
     """Si el usuario actual NO es admin, notifica a los admins del cambio."""
@@ -58,6 +90,8 @@ def _apply_filters(query):
 @bp.route("", methods=["GET"])
 @jwt_required()
 def list_incidencias():
+    # Auto-dedupe silencioso una sola vez por instancia
+    _auto_dedupe_incidencias_once()
     query = _apply_filters(Incidencia.query)
     items = query.order_by(Incidencia.inc_date.desc().nullslast(), Incidencia.id.desc()).all()
     return jsonify([i.to_dict() for i in items])
@@ -156,6 +190,27 @@ def create_incidencia():
     data = request.get_json(silent=True) or {}
     if not data.get("site"):
         return jsonify(error="missing_site", message="El sitio es obligatorio"), 400
+
+    # ── Anti-duplicado: misma (site, problem, err_code) abierta = no crear nueva ──
+    site_n = (parse_str(data.get("site")) or "").strip().lower()
+    prob_n = (parse_str(data.get("problem")) or "").strip().lower()
+    err_n  = (parse_str(data.get("errCode")) or "").strip().lower()
+    if site_n:
+        existing_open = None
+        for x in Incidencia.query.filter(Incidencia.site.ilike(parse_str(data.get("site")))).all():
+            if ((x.site or "").strip().lower() == site_n
+                and (x.problem or "").strip().lower() == prob_n
+                and (x.err_code or "").strip().lower() == err_n
+                and (x.status or "").lower() != "cerrada"):
+                existing_open = x
+                break
+        if existing_open:
+            return jsonify(
+                error="duplicate",
+                message=f"Ya existe una incidencia abierta #{existing_open.id} con los mismos datos. Evitando duplicado.",
+                existing=existing_open.to_dict(),
+            ), 409
+
     inc = Incidencia(site=parse_str(data["site"]))
     _apply_payload(inc, data)
     db.session.add(inc)
