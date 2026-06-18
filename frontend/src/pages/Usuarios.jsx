@@ -3,9 +3,10 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { usersApi } from '../api/endpoints';
+import { usersApi, notificationsApi } from '../api/endpoints';
 import api from '../api/client';
 import { fmtDateTime, downloadXLSX } from '../utils/format';
+import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '../utils/push';
 
 const ROLES = ['admin', 'operator', 'mantenimiento', 'tecnico', 'viewer'];
 
@@ -358,6 +359,123 @@ export default function Usuarios() {
           </Row>
         </div>
       </Modal>
+
+      {/* ── Sección de Notificaciones (solo admin) ── */}
+      {canWrite && <NotificacionesPanel toast={toast} />}
+    </div>
+  );
+}
+
+// ── Panel de configuración de notificaciones (push, WhatsApp, PWA) ──
+function NotificacionesPanel({ toast }) {
+  const [subs, setSubs] = useState([]);
+  const [phone, setPhone] = useState('');
+  const [pushSupported, setPushSupported] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const load = () =>
+    notificationsApi.list().then(setSubs).catch(() => {}).finally(() => setLoading(false));
+
+  useEffect(() => {
+    isPushSupported().then(setPushSupported);
+    load();
+  }, []);
+
+  const pushSub = subs.find((s) => s.channel === 'push');
+  const waSub  = subs.find((s) => s.channel === 'whatsapp');
+
+  const enablePush = async () => {
+    try { await subscribeToPush(); toast('✓ Push activado'); load(); }
+    catch (e) { toast(e.message || 'Error al activar push', 'error'); }
+  };
+  const disablePush = async () => {
+    try {
+      await unsubscribeFromPush();
+      if (pushSub) await notificationsApi.unsubscribe(pushSub.id);
+      toast('Push desactivado'); load();
+    } catch (e) { toast(e.message || 'Error', 'error'); }
+  };
+  const saveWhatsapp = async () => {
+    if (!phone.trim()) return toast('Ingresa un número', 'error');
+    try {
+      await notificationsApi.subscribeWhatsapp(phone.trim());
+      toast('✓ WhatsApp registrado'); setPhone(''); load();
+    } catch (e) { toast(e.response?.data?.message || 'Error', 'error'); }
+  };
+  const removeWhatsapp = async () => {
+    if (waSub) { await notificationsApi.unsubscribe(waSub.id); toast('WhatsApp desactivado'); load(); }
+  };
+  const testNotif = async () => {
+    try { const r = await notificationsApi.test(); toast(`Enviadas: ${r.sent}`); }
+    catch { toast('Error en prueba', 'error'); }
+  };
+
+  return (
+    <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px solid var(--gray-200)' }}>
+      <div className="section-header" style={{ marginBottom: 6 }}>
+        <h2 style={{ fontSize: 18 }}>🔔 Configuración de notificaciones</h2>
+      </div>
+      <p style={{ color: 'var(--gray-500)', marginBottom: 16, fontSize: 13 }}>
+        Configura cómo recibir alertas de mantenimientos programados, vencimientos de pólizas e incidencias críticas.
+      </p>
+
+      {loading ? <div className="empty"><span className="spinner" /></div> : (
+        <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
+          {/* WEB PUSH */}
+          <div style={{ background: 'var(--card-bg, #fff)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 14 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 6 }}>📱 Notificaciones del navegador (PWA)</h3>
+            <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+              Funciona en Android (Chrome) y iOS 16.4+ instalando la app a la pantalla de inicio. Recibirás notificaciones aunque la app esté cerrada.
+            </p>
+            {!pushSupported && (
+              <div style={{ background: '#fef3c7', padding: 8, borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                ⚠️ Este navegador no soporta Web Push. Usa Chrome (Android) o Safari (iOS 16.4+) desde el celular.
+              </div>
+            )}
+            {pushSupported && pushSub && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>✓ Activado</span>
+                <button className="btn btn-sm btn-danger" onClick={disablePush}>Desactivar</button>
+                <button className="btn btn-sm" onClick={testNotif}>🔔 Enviar prueba</button>
+              </div>
+            )}
+            {pushSupported && !pushSub && (
+              <button className="btn btn-primary btn-sm" onClick={enablePush}>Activar notificaciones push</button>
+            )}
+          </div>
+
+          {/* WHATSAPP */}
+          <div style={{ background: 'var(--card-bg, #fff)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 14 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 6 }}>💬 WhatsApp</h3>
+            <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+              Recibe avisos por WhatsApp. Requiere que Twilio esté configurado en el servidor.
+            </p>
+            {waSub ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>✓ {waSub.phone}</span>
+                <button className="btn btn-sm btn-danger" onClick={removeWhatsapp}>Eliminar</button>
+                <button className="btn btn-sm" onClick={testNotif}>🔔 Enviar prueba</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input className="filter-input" placeholder="+52 999 105 5811" value={phone}
+                  onChange={(e) => setPhone(e.target.value)} style={{ minWidth: 220 }} />
+                <button className="btn btn-primary btn-sm" onClick={saveWhatsapp}>Registrar número</button>
+              </div>
+            )}
+          </div>
+
+          {/* INSTALAR PWA */}
+          <div style={{ background: '#f8fafc', border: '1px dashed var(--gray-300)', borderRadius: 10, padding: 14 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 6 }}>📥 Instalar app en celular</h3>
+            <p style={{ fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6, margin: 0 }}>
+              <strong>Android:</strong> abre esta página en Chrome → menú (⋮) → "Instalar aplicación".<br />
+              <strong>iPhone:</strong> abre esta página en Safari → botón compartir → "Añadir a pantalla de inicio".<br />
+              Una vez instalada, te aparece como app nativa y recibe notificaciones aunque no la tengas abierta.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

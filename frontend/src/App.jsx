@@ -21,7 +21,6 @@ import Calendario from './pages/Calendario';
 import Reportes from './pages/Reportes';
 import Historial from './pages/Historial';
 import Usuarios from './pages/Usuarios';
-import Notificaciones from './pages/Notificaciones';
 import Viaticos from './pages/Viaticos';
 import Checklists from './pages/Checklists';
 import Lecciones from './pages/Lecciones';
@@ -92,7 +91,8 @@ export default function App() {
         <Route path="/reportes" element={<Protected roles={['admin', 'operator']}><Reportes /></Protected>} />
         <Route path="/historial" element={<Protected roles={['admin']}><Historial /></Protected>} />
         <Route path="/usuarios" element={<Protected roles={['admin']}><Usuarios /></Protected>} />
-        <Route path="/notificaciones" element={<Protected roles={['admin']}><Notificaciones /></Protected>} />
+        {/* /notificaciones movido dentro de /usuarios — redirigimos por compatibilidad */}
+        <Route path="/notificaciones" element={<Navigate to="/usuarios" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </ToastProvider>

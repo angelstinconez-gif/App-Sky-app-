@@ -36,7 +36,7 @@ const NAV = [
   { to: '/tickets-por-proyecto', label: 'Tickets por proyecto', icon: '📊', roles: ['admin', 'operator', 'mantenimiento'] },
   { to: '/reportes',       label: 'Reportes',     icon: '📈', roles: ['admin', 'operator'] },
   { section: 'Sistema' },
-  { to: '/notificaciones', label: 'Notificaciones',icon: '🔔', roles: ['admin'] },
+  // Notificaciones movido dentro de Usuarios (configuración de canales)
   { to: '/historial',      label: 'Historial',    icon: '🕓', roles: ['admin'] },
   { to: '/usuarios',       label: 'Usuarios',     icon: '👤', roles: ['admin'] },
 ];
