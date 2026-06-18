@@ -392,12 +392,49 @@ def heatmap():
     return jsonify(dias=dias, plantas=plantas, totalPlantas=len(plantas))
 
 
+def _replicar_a_semana(project, fecha_base, estado, observaciones, code, poliza_id, claims):
+    """Crea/actualiza la revisión del proyecto para CADA día de la semana ISO
+    de fecha_base (Lun a Dom). NO genera incidencias. Útil para que un solo
+    guardado refleje el estado durante toda la semana.
+    Devuelve (creadas, actualizadas).
+    """
+    iso = fecha_base.isocalendar()
+    # Lunes ISO de la semana
+    lunes = fecha_base - timedelta(days=iso[2] - 1)
+    creadas, actualizadas = 0, 0
+    for offset in range(7):
+        d = lunes + timedelta(days=offset)
+        existing = (RevisionSemanal.query
+                    .filter_by(project=project, fecha=d).first())
+        target = existing or RevisionSemanal(project=project)
+        target.fecha = d
+        target.year = d.isocalendar()[0]
+        target.week = d.isocalendar()[1]
+        target.estado = estado
+        target.observaciones = observaciones
+        target.code = code
+        target.poliza_id = poliza_id
+        target.revisado_por = claims.get("name")
+        target.revisado_por_email = claims.get("email")
+        target.fecha_revision = _hoy()
+        if existing:
+            actualizadas += 1
+        else:
+            db.session.add(target)
+            creadas += 1
+    return creadas, actualizadas
+
+
 @bp.route("", methods=["POST"])
 @jwt_required()
 @role_required("admin", "operator", "mantenimiento", "tecnico")
 def upsert():
-    """Crea o actualiza una revisión diaria. Si el estado no es OK y
-    `generarIncidencia` está en True, crea una incidencia asociada."""
+    """Guarda una revisión diaria.
+
+    Por defecto **replica el estado a TODA la semana ISO** (lunes a domingo)
+    para que con un solo guardado quede registrado los 7 días.
+    NUNCA genera incidencias ni tickets (el parámetro generarIncidencia se ignora).
+    """
     data = request.get_json(silent=True) or {}
     project = parse_str(data.get("project"))
     if not project:
@@ -408,71 +445,29 @@ def upsert():
                        message=f"Estado debe ser uno de: {', '.join(ESTADOS_REVISION)}"), 400
 
     fecha = _parse_iso_date(data.get("fecha")) or _hoy()
-    iso = fecha.isocalendar()
     claims = get_jwt() or {}
+    observaciones = parse_str(data.get("observaciones"))
+    code = parse_str(data.get("code"))
+    poliza_id = parse_int(data.get("polizaId"))
 
-    # Buscar revisión existente del MISMO DÍA EXACTO (sin fallback semanal)
-    existing = (RevisionSemanal.query
-                .filter_by(project=project, fecha=fecha).first())
+    # Replicar SIEMPRE a toda la semana — un solo guardado cubre Lun-Dom
+    creadas, actualizadas = _replicar_a_semana(
+        project, fecha, estado, observaciones, code, poliza_id, claims
+    )
 
-    target = existing or RevisionSemanal(project=project)
-    target.fecha = fecha
-    target.year = iso[0]
-    target.week = iso[1]
-    target.estado = estado
-    target.observaciones = parse_str(data.get("observaciones"))
-    target.code = parse_str(data.get("code"))
-    target.poliza_id = parse_int(data.get("polizaId"))
-    target.revisado_por = claims.get("name")
-    target.revisado_por_email = claims.get("email")
-    target.fecha_revision = _hoy()
-
-    incidencia_created = None
-    if estado != "OK" and bool(data.get("generarIncidencia")) and not target.incidencia_id:
-        try:
-            prio_map = {
-                "Sin comunicación": "Alta",
-                "Falla": "Critico",
-                "Falta de datos": "Intermedia",
-            }
-            problem_map = {
-                "Sin comunicación": "Sin comunicación con el equipo",
-                "Falla": "Falla detectada en revisión diaria",
-                "Falta de datos": "Falta de datos en revisión",
-            }
-            inc = Incidencia(
-                site=project,
-                code=target.code,
-                priority=prio_map.get(estado, "Intermedia"),
-                problem=problem_map.get(estado, estado),
-                notes=f"Generada automáticamente desde revisión diaria del {fecha.isoformat()} — Estado: {estado}\n\n"
-                      f"{data.get('observaciones') or ''}",
-                classification="COMUNICACIÓN" if estado == "Sin comunicación" else "INVERSOR",
-                inc_date=fecha,
-                status="abierta",
-                responsible=claims.get("name"),
-            )
-            if target.poliza_id:
-                pol = db.session.get(Poliza, target.poliza_id)
-                if pol:
-                    inc.client = pol.grupo
-                    if not inc.code: inc.code = pol.code
-                    if pol.platform: inc.platform = pol.platform
-            db.session.add(inc)
-            db.session.flush()
-            target.incidencia_id = inc.id
-            incidencia_created = inc.id
-        except Exception as e:
-            print(f"⚠️  No se pudo crear incidencia: {e}")
-
-    if not existing:
-        db.session.add(target)
     log_change("revisiones_semanales",
-               "actualizar" if existing else "crear",
-               f"Revisión {project} {fecha.isoformat()}: {estado}",
-               new=target.to_dict())
+               "actualizar" if actualizadas else "crear",
+               f"Revisión semana de {fecha.isoformat()} — {project}: {estado} (+{creadas} ↻{actualizadas})")
     db.session.commit()
-    return jsonify(revision=target.to_dict(), incidenciaCreated=incidencia_created), 201
+
+    # Devolver la revisión del día solicitado (la que el frontend pidió)
+    final = (RevisionSemanal.query
+             .filter_by(project=project, fecha=fecha).first())
+    return jsonify(
+        revision=final.to_dict() if final else None,
+        replicadasSemana={"creadas": creadas, "actualizadas": actualizadas},
+        incidenciaCreated=None,   # nunca genera
+    ), 201
 
 
 @bp.route("/bulk", methods=["POST"])
@@ -492,12 +487,10 @@ def bulk_save():
     poliza_ids = data.get("polizaIds") or []
     if not isinstance(poliza_ids, list) or not poliza_ids:
         return jsonify(error="missing_polizas"), 400
-    generar_inc = bool(data.get("generarIncidencias"))
+    # Ignoramos generarIncidencias — la revisión diaria ya NO genera incidencias
 
     claims = get_jwt() or {}
-    creados = 0
-    actualizados = 0
-    incidencias = []
+    total_creadas, total_actualizadas = 0, 0
 
     for pid in poliza_ids:
         try:
@@ -507,60 +500,19 @@ def bulk_save():
         pol = db.session.get(Poliza, pid)
         if not pol:
             continue
-        existing = (RevisionSemanal.query
-                    .filter_by(project=pol.project, fecha=fecha).first())
-        if not existing:
-            existing = (RevisionSemanal.query
-                        .filter_by(project=pol.project, year=iso[0], week=iso[1], fecha=None).first())
-        target = existing or RevisionSemanal(project=pol.project)
-        target.fecha = fecha
-        target.year = iso[0]
-        target.week = iso[1]
-        target.code = pol.code
-        target.poliza_id = pol.id
-        target.estado = estado
-        target.revisado_por = claims.get("name")
-        target.revisado_por_email = claims.get("email")
-        target.fecha_revision = _hoy()
-
-        if estado != "OK" and generar_inc and not target.incidencia_id:
-            try:
-                prio_map = {"Sin comunicación": "Alta", "Falla": "Critico", "Falta de datos": "Intermedia"}
-                problem_map = {
-                    "Sin comunicación": "Sin comunicación con el equipo",
-                    "Falla": "Falla detectada en revisión diaria",
-                    "Falta de datos": "Falta de datos en revisión",
-                }
-                inc = Incidencia(
-                    site=pol.project, code=pol.code,
-                    priority=prio_map.get(estado, "Intermedia"),
-                    problem=problem_map.get(estado, estado),
-                    notes=f"Generada en bulk desde revisión diaria del {fecha.isoformat()} — Estado: {estado}",
-                    classification="COMUNICACIÓN" if estado == "Sin comunicación" else "INVERSOR",
-                    inc_date=fecha,
-                    status="abierta",
-                    responsible=claims.get("name"),
-                    client=pol.grupo,
-                    platform=pol.platform,
-                )
-                db.session.add(inc)
-                db.session.flush()
-                target.incidencia_id = inc.id
-                incidencias.append(inc.id)
-            except Exception as e:
-                print(f"⚠️  Error creando incidencia bulk: {e}")
-
-        if existing:
-            actualizados += 1
-        else:
-            db.session.add(target)
-            creados += 1
+        # Replicar a TODA la semana (Lun-Dom) para cada planta seleccionada
+        c, a = _replicar_a_semana(
+            pol.project, fecha, estado, None, pol.code, pol.id, claims
+        )
+        total_creadas += c
+        total_actualizadas += a
 
     db.session.commit()
     log_change("revisiones_semanales", "bulk",
-               f"Bulk save {fecha.isoformat()}: {len(poliza_ids)} plantas '{estado}'")
+               f"Bulk save semana de {fecha.isoformat()}: {len(poliza_ids)} plantas '{estado}'")
     return jsonify(
-        creados=creados, actualizados=actualizados,
-        incidenciasGeneradas=incidencias,
-        total=creados + actualizados,
+        creados=total_creadas, actualizados=total_actualizadas,
+        incidenciasGeneradas=[],   # nunca genera
+        total=total_creadas + total_actualizadas,
+        plantasAfectadas=len(poliza_ids),
     ), 201

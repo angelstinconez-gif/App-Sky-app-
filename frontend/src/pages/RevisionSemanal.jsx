@@ -51,7 +51,7 @@ export default function RevisionSemanal() {
   const [q, setQ] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ estado: 'OK', observaciones: '', generarIncidencia: false });
+  const [form, setForm] = useState({ estado: 'OK', observaciones: '' });
 
   const [selected, setSelected] = useState(new Set());
   const [bulkEstado, setBulkEstado] = useState('OK');
@@ -109,13 +109,6 @@ export default function RevisionSemanal() {
 
   const onSave = async () => {
     if (!editing) return;
-    const noOk = form.estado !== 'OK';
-    let generar = form.generarIncidencia;
-    if (noOk && !generar && !editing.incidenciaId) {
-      generar = await window.skyConfirm(
-        `El estado seleccionado es "${form.estado}".\n\n¿Deseas generar automáticamente una incidencia para dar seguimiento?`
-      );
-    }
     try {
       const r = await revsemApi.upsert({
         project: editing.project,
@@ -124,10 +117,10 @@ export default function RevisionSemanal() {
         fecha,
         estado: form.estado,
         observaciones: form.observaciones,
-        generarIncidencia: generar,
       });
-      if (r.incidenciaCreated) {
-        toast(`✓ Revisión guardada · Incidencia #${r.incidenciaCreated} generada`);
+      const rep = r.replicadasSemana;
+      if (rep) {
+        toast(`✓ Replicado a la semana (Lun-Dom) · +${rep.creadas} creadas, ${rep.actualizadas} actualizadas`);
       } else {
         toast('Revisión guardada');
       }
@@ -177,25 +170,18 @@ export default function RevisionSemanal() {
 
   const onBulkSave = async () => {
     if (selected.size === 0) return toast('Selecciona al menos una planta', 'error');
-    const noOk = bulkEstado !== 'OK';
-    let generar = false;
-    if (noOk) {
-      generar = await window.skyConfirm(
-        `Vas a marcar ${selected.size} planta(s) con estado "${bulkEstado}".\n\n` +
-        `¿Generar automáticamente una incidencia para cada una?`
-      );
-    } else {
-      if (!await window.skyConfirm(`Vas a marcar ${selected.size} planta(s) como "OK" para el ${fecha}.\n\n¿Continuar?`)) return;
-    }
+    if (!await window.skyConfirm(
+      `Vas a marcar ${selected.size} planta(s) con estado "${bulkEstado}".\n\n` +
+      `El estado se replica a TODA la semana (Lun-Dom) de la fecha ${fecha}.\n` +
+      `NO se generarán incidencias ni tickets.\n\n¿Continuar?`
+    )) return;
     setSavingBulk(true);
     try {
       const r = await revsemApi.bulk({
         fecha, estado: bulkEstado,
         polizaIds: Array.from(selected),
-        generarIncidencias: generar,
       });
-      const inc = r.incidenciasGeneradas?.length || 0;
-      toast(`✓ ${r.total} revisión(es) guardada(s)${inc > 0 ? ` · ${inc} incidencia(s) creada(s)` : ''}`);
+      toast(`✓ ${r.plantasAfectadas} planta(s) marcadas en toda la semana (${r.total} días totales)`);
       setSelected(new Set());
       load();
       if (heatmap) loadHeatmap();
@@ -498,25 +484,14 @@ export default function RevisionSemanal() {
                 style={{ width: '100%' }} />
             </div>
 
-            {form.estado !== 'OK' && !editing.incidenciaId && (
-              <div style={{
-                background: '#fef3c7', border: '1px solid #fde68a',
-                borderLeft: '4px solid #f59e0b', padding: 10, borderRadius: 6,
-                fontSize: 12, color: '#92400e',
-              }}>
-                ⚠️ El estado seleccionado es <strong>"{form.estado}"</strong>.
-                Al guardar te preguntaremos si deseas generar una incidencia.
-              </div>
-            )}
-            {editing.incidenciaId && (
-              <div style={{
-                background: '#dcfce7', border: '1px solid #86efac',
-                borderLeft: '4px solid #16a34a', padding: 10, borderRadius: 6,
-                fontSize: 12, color: '#065f46',
-              }}>
-                ✓ Ya existe una incidencia asociada: <strong>#{editing.incidenciaId}</strong>
-              </div>
-            )}
+            <div style={{
+              background: '#eef2ff', border: '1px solid #c7d2fe',
+              borderLeft: '4px solid #0033A0', padding: 10, borderRadius: 6,
+              fontSize: 12, color: '#1e3a8a',
+            }}>
+              ℹ️ Al guardar, este estado se replica a <strong>los 7 días de la semana actual (Lun–Dom)</strong>.
+              NO se generan incidencias ni tickets — solo se registra el estado de la planta.
+            </div>
           </div>
         )}
       </Modal>
