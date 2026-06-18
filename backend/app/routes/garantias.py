@@ -12,9 +12,76 @@ from app.utils.parse import parse_date, parse_str
 bp = Blueprint("garantias", __name__)
 
 
+# Flags de proceso (volátiles): True una vez que ya se hicieron
+_dedupe_done = False
+_columns_added = False
+
+
+def _ensure_creado_por_columns():
+    """Añade columnas creado_por / creado_por_email a garantias si no existen.
+    Una sola vez por instancia."""
+    global _columns_added
+    if _columns_added:
+        return
+    _columns_added = True
+    try:
+        from sqlalchemy import inspect, text
+        insp = inspect(db.engine)
+        if not insp.has_table("garantias"):
+            return
+        cols = {c["name"] for c in insp.get_columns("garantias")}
+        for col, ddl in [
+            ("creado_por",       "ALTER TABLE garantias ADD COLUMN creado_por VARCHAR(160)"),
+            ("creado_por_email", "ALTER TABLE garantias ADD COLUMN creado_por_email VARCHAR(180)"),
+        ]:
+            if col not in cols:
+                try:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(ddl))
+                    print(f"➕ Columna garantias.{col} creada")
+                except Exception as e:
+                    print(f"⚠️  No se pudo crear garantias.{col}: {e}")
+    except Exception as e:
+        print(f"⚠️  ensure_creado_por_columns falló: {e}")
+
+
+def _auto_dedupe_garantias_once():
+    """Elimina duplicados por (project, ticket, error, sn) la PRIMERA vez que se llama.
+    Después no hace nada hasta el próximo reinicio del backend.
+    Silencioso si no hay duplicados."""
+    global _dedupe_done
+    if _dedupe_done:
+        return 0
+    _dedupe_done = True   # marcar ya hecho aunque falle, para no reintentar en loop
+    try:
+        def _n(s): return (s or "").strip().lower()
+        seen, to_del = set(), 0
+        for g in Garantia.query.order_by(Garantia.id.asc()).all():
+            k = (_n(g.project), _n(g.ticket), _n(g.error), _n(g.sn))
+            if all(not x for x in k):
+                continue  # registros con todo vacío no se consideran duplicado
+            if k in seen:
+                db.session.delete(g)
+                to_del += 1
+            else:
+                seen.add(k)
+        if to_del:
+            db.session.commit()
+            print(f"🧹 Auto-dedupe garantías: {to_del} duplicados eliminados")
+        return to_del
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️  Auto-dedupe garantías falló: {e}")
+        return 0
+
+
 @bp.route("", methods=["GET"])
 @jwt_required()
 def list_garantias():
+    # ── Auto-setup en la primera llamada (silencioso, una sola vez por instancia) ──
+    _ensure_creado_por_columns()
+    _auto_dedupe_garantias_once()
+
     q = request.args.get("q")
     status = request.args.get("status")
     query = Garantia.query
