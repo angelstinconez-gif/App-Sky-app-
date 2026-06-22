@@ -22,6 +22,7 @@ class Poliza(db.Model):
     status = db.Column(db.String(40), index=True)   # Vigente / Vencida
     poliza = db.Column(db.String(120))              # Tipo de sistema: PV, BESS, Híbrido
     cobertura = db.Column(db.String(30), index=True)  # Tipo de Póliza: Completo / Eléctrico / Mantenimiento / Operación
+    monitoreo = db.Column(db.Boolean, default=False, index=True)  # Si tiene Monitoreo activo (aparece en Revisión SFV)
     zona = db.Column(db.String(80), index=True)
     cuadrilla = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -56,6 +57,7 @@ class Poliza(db.Model):
             "status": self.computed_status(),
             "poliza": self.poliza,
             "cobertura": self.cobertura,
+            "monitoreo": bool(self.monitoreo),
             "tieneOperacion": self.tiene_operacion,
             "zona": self.zona,
             "cuadrilla": self.cuadrilla,

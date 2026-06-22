@@ -32,9 +32,15 @@ def _parse_iso_date(s):
 
 
 def _es_pv(p):
-    """Determina si la póliza es de tipo PV (o híbrido). Permisivo: por defecto SI."""
+    """Determina si la planta entra al checklist diario.
+    Regla:
+      - Si tiene monitoreo=True → SÍ entra (override total, sin importar tipo/garantía).
+      - Si no, regla anterior por código/tipo (excluye BESS puro)."""
     if not p:
         return False
+    # Monitoreo activado → siempre entra
+    if getattr(p, "monitoreo", False):
+        return True
     tipo = (p.poliza or "").upper()
     code_up = (p.code or "").upper()
     # Excluir SOLO si es BESS puro sin componente PV

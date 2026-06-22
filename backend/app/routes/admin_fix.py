@@ -143,6 +143,143 @@ def reset_admin_password():
     return jsonify(success=True, message=f"Password reseteada para {email}")
 
 
+@bp.route("/setup-monitoreo-inicial", methods=["POST"])
+@jwt_required()
+@role_required("admin")
+def setup_monitoreo_inicial():
+    """Marca con monitoreo=True las plantas iniciales que el cliente especificó.
+    Lista hardcoded. Idempotente: re-ejecutar no rompe nada."""
+    from app.models.poliza import Poliza
+    plantas = [
+        "ASUR Merida",
+        "Aeropuerto Internacional de Ciudad Juárez",
+        "Aeropuerto Internacional de Culiacán",
+        "Aeropuerto Internacional de Durango",
+        "Aeropuerto Internacional de Torreón",
+        "Aeropuerto Internacional de Zacatecas",
+        "MERCK",
+        "Trafimar",
+        "EL PALACIO DE HIERRO QRO",
+        "Cafetal 189",
+        "Canela 350",
+        "MAESA Nave 2",
+        "MAESA Nave 1",
+        "Surtidora de Lámina",
+        "Antea QRO - UP1 Sub#1 1500KVA",
+        "Antea QRO - UP2 Sub#2 1500KVA",
+        "HOTEL NAVIVA",
+        "Aquamatic División Del Norte",
+        "Industrias RC",
+        "industrias RC 2",
+        "Aquamatic Tezozomoc",
+        "Artículos Higiénicos De México SA DE CV",
+        "ASUR Merida COMEDOR",
+        "ASUR Mérida-CREI",
+        "ASUR Oaxaca",
+        "FV HUAX SE1 - ASUR HUATULCO",
+        "FV HUAX SE2 - ASUR HUATULCO",
+        "ASUR Tapachula",
+        "Fantasías Miguel Cancún",
+        "Fantasías Miguel Tultitlan",
+        "FM_MTY SAN JERONIMO",
+        "FM la tijera",
+        "FM Boca del río",
+        "FM MID MTY",
+        "FM Campestre",
+        "FM Arboledas",
+        "FM Coacalco",
+        "FM Aguascalientes",
+        "Fantasias Miguel Mariano Escobedo",
+        "AXIS Nave Principal",
+        "TALLER FOSTER WHEELER",
+        "FORMETAX FWM",
+        "MEDICA SAN ISIDRO",
+        "CMT-ESPECIALIDADES",
+        "FRITOS TOTIS",
+        "MEXCOAT LOTE 10",
+        "MEXCOAT LOTE 11",
+        "Congelados Alysa",
+        "Acrilicos Sablón",
+        "Telas Bayo",
+        "IPASA BOLSAS ARTESANALES",
+        "HOLOGIC COSTA RICA",
+        "Autolomas SEAT",
+        "Mil Cumbres",
+        "Roberto Aguilar Gasolinera",
+        "Hector Flores",
+        "Claudia Monroy - Tiro al pichón 200",
+        "Pablo Favela - Piamonte 1",
+        "Sofía Perochena - Calle del parque 30",
+        "RANCHO LA CAMPANADA",
+        "EUROVALLE",
+        "Nuvoil Grande",
+        "Nuvoil Chico",
+        "P18-0327",
+        "P18-4212",
+        "P18-2101",
+        "AGROBAL_ORDEÑA",
+        "AGROBAL_ESTABLO",
+        "BIDASOA",
+        "Guillermo Ballesteros",
+        "CENTRUM PARK EDIFICIO C",
+        "CENTRUM PARK EDIFICIO B2",
+        "CENTRUM PARK EDIFICIO D",
+        "CENTRUM PARK EDIFICIO E",
+        "CENTRUM PARK EDIFICIO B1",
+        "CENTRUM PARK EDIFICIO HVAC",
+        "Trimex Larry",
+        "CENTRO MEDICO TOLUCA",
+        "Hector Flores-club de golf",
+        "Texturizados",
+        "CLARIMEX",
+        "272 Ixtepec",
+        "838 Cunduacan",
+        "P196 Plaza Chedraui Aguascalientes Colosio",
+        "Vidanta",
+    ]
+
+    def _norm(s): return (s or "").strip().lower()
+    objetivos = {_norm(p): p for p in plantas}
+
+    marcadas = []
+    no_encontradas = []
+    for p in Poliza.query.all():
+        key = _norm(p.project)
+        if key in objetivos:
+            p.monitoreo = True
+            marcadas.append(p.project)
+            objetivos.pop(key, None)
+
+    # Las que quedaron sin encontrar
+    no_encontradas = list(objetivos.values())
+
+    # Fallback: búsqueda flexible (parcial) para las no encontradas
+    encontradas_fuzzy = []
+    if no_encontradas:
+        for nombre_buscar in no_encontradas[:]:
+            nb = _norm(nombre_buscar)
+            for p in Poliza.query.all():
+                pn = _norm(p.project)
+                # Match si uno contiene al otro (mín 6 chars)
+                if len(nb) >= 6 and (nb in pn or pn in nb):
+                    if not p.monitoreo:
+                        p.monitoreo = True
+                        encontradas_fuzzy.append(f"{nombre_buscar} → {p.project}")
+                        no_encontradas.remove(nombre_buscar)
+                        break
+
+    db.session.commit()
+    return jsonify(
+        success=True,
+        marcadasExactas=len(marcadas),
+        encontradasFuzzy=len(encontradas_fuzzy),
+        noEncontradas=len(no_encontradas),
+        fuzzyMatches=encontradas_fuzzy,
+        sinMatch=no_encontradas,
+        total=Poliza.query.filter_by(monitoreo=True).count(),
+    )
+
+
 @bp.route("/dedupe-garantias", methods=["POST"])
 @jwt_required()
 @role_required("admin")

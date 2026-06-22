@@ -26,10 +26,17 @@ def _ensure_cobertura_col():
         if not insp.has_table("polizas"):
             return
         cols = {c["name"] for c in insp.get_columns("polizas")}
-        if "cobertura" not in cols:
-            with db.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE polizas ADD COLUMN cobertura VARCHAR(30)"))
-            print("➕ Columna polizas.cobertura creada")
+        for col, ddl in [
+            ("cobertura", "ALTER TABLE polizas ADD COLUMN cobertura VARCHAR(30)"),
+            ("monitoreo", "ALTER TABLE polizas ADD COLUMN monitoreo BOOLEAN DEFAULT FALSE"),
+        ]:
+            if col not in cols:
+                try:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(ddl))
+                    print(f"➕ Columna polizas.{col} creada")
+                except Exception as e:
+                    print(f"⚠️  No se pudo crear polizas.{col}: {e}")
     except Exception as e:
         print(f"⚠️  ensure_cobertura_col falló: {e}")
 
@@ -208,6 +215,8 @@ def _apply(p: Poliza, data: dict):
     p.status = parse_str(data.get("status"))
     p.poliza = parse_str(data.get("poliza"))
     p.cobertura = parse_str(data.get("cobertura"))
+    if "monitoreo" in data:
+        p.monitoreo = bool(data.get("monitoreo"))
     p.zona = parse_str(data.get("zona"))
     p.cuadrilla = parse_str(data.get("cuadrilla"))
 
