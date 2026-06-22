@@ -241,8 +241,8 @@ def setup_monitoreo_inicial():
     def _norm(s): return (s or "").strip().lower()
     objetivos = {_norm(p): p for p in plantas}
 
+    # 1) Match exacto
     marcadas = []
-    no_encontradas = []
     for p in Poliza.query.all():
         key = _norm(p.project)
         if key in objetivos:
@@ -250,17 +250,16 @@ def setup_monitoreo_inicial():
             marcadas.append(p.project)
             objetivos.pop(key, None)
 
-    # Las que quedaron sin encontrar
     no_encontradas = list(objetivos.values())
 
-    # Fallback: búsqueda flexible (parcial) para las no encontradas
+    # 2) Fallback fuzzy
     encontradas_fuzzy = []
     if no_encontradas:
+        all_pol = Poliza.query.all()
         for nombre_buscar in no_encontradas[:]:
             nb = _norm(nombre_buscar)
-            for p in Poliza.query.all():
+            for p in all_pol:
                 pn = _norm(p.project)
-                # Match si uno contiene al otro (mín 6 chars)
                 if len(nb) >= 6 and (nb in pn or pn in nb):
                     if not p.monitoreo:
                         p.monitoreo = True
@@ -268,13 +267,31 @@ def setup_monitoreo_inicial():
                         no_encontradas.remove(nombre_buscar)
                         break
 
+    # 3) Las que SIGUEN sin encontrar → CREAR póliza nueva con monitoreo=True
+    creadas = []
+    for nombre in no_encontradas[:]:
+        # Verifica no haya creado ya una con ese nombre (por seguridad)
+        if Poliza.query.filter(Poliza.project.ilike(nombre)).first():
+            continue
+        nueva = Poliza(
+            project=nombre,
+            monitoreo=True,
+            cobertura="Monitoreo",
+            status="Vigente",
+        )
+        db.session.add(nueva)
+        creadas.append(nombre)
+        no_encontradas.remove(nombre)
+
     db.session.commit()
     return jsonify(
         success=True,
         marcadasExactas=len(marcadas),
         encontradasFuzzy=len(encontradas_fuzzy),
+        creadasNuevas=len(creadas),
         noEncontradas=len(no_encontradas),
         fuzzyMatches=encontradas_fuzzy,
+        nuevas=creadas,
         sinMatch=no_encontradas,
         total=Poliza.query.filter_by(monitoreo=True).count(),
     )

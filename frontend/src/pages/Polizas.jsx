@@ -159,6 +159,7 @@ export default function Polizas() {
               'Eléctrico':     { bg: '#fee2e2', fg: '#991b1b' },
               'Mantenimiento': { bg: '#fef3c7', fg: '#92400e' },
               'Operación':     { bg: '#dbeafe', fg: '#1e40af' },
+              'Monitoreo':     { bg: '#e0e7ff', fg: '#3730a3' },
             };
             const s = styles[c] || { bg: '#f3f4f6', fg: '#6b7280' };
             if (!c) return <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>—</span>;
@@ -229,7 +230,7 @@ export default function Polizas() {
         {
           key: 'cobertura', label: 'Cobertura de la póliza',
           type: 'select',
-          options: ['', 'Completo', 'Eléctrico', 'Mantenimiento', 'Operación'],
+          options: ['', 'Completo', 'Eléctrico', 'Mantenimiento', 'Operación', 'Monitoreo'],
         },
         { key: 'zona', label: 'Zona' },
         { key: 'cuadrilla', label: 'Cuadrilla' },
