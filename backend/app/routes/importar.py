@@ -278,6 +278,118 @@ def import_directorio():
 # ──────────────────────────────────────────────────────────
 #  MANTENIMIENTO — upsert por (project, fecha_programada, tipo)
 # ──────────────────────────────────────────────────────────
+@bp.route("/planeacion-2026", methods=["POST"])
+@jwt_required()
+@admin_required
+def import_planeacion_2026():
+    """Importa la hoja 'Programa' del archivo Planeación 2026.xlsx.
+
+    Estructura esperada:
+      - Hoja: 'Programa'
+      - Cabeceras en fila 7 (cols: N°, Cliente, Código, Proyecto, Plataforma,
+        #Paneles, #Inversores, Inicio Sistema, Ubicación, Cuadrilla, Tipo,
+        Vigencia Inicio/Fin/Estatus, PR/E/R/N/P, Último Mantto, Plan, Real)
+      - Datos desde fila 8 en adelante.
+
+    UPSERT por (project, fecha_programada, tipo).
+    NO toca datos existentes que tengan ejecución real (preserva trabajo del usuario).
+    """
+    f = request.files.get("file")
+    if not f:
+        return jsonify(error="no_file"), 400
+    try:
+        wb = load_workbook(BytesIO(f.read()), data_only=True)
+    except Exception as e:
+        return jsonify(error="bad_file", message=str(e)), 400
+
+    sheet_name = "Programa" if "Programa" in wb.sheetnames else wb.sheetnames[0]
+    ws = wb[sheet_name]
+
+    created, updated, saltadas = 0, 0, 0
+    detalle = []
+
+    for r in range(8, ws.max_row + 1):
+        def cell(col):
+            return ws.cell(row=r, column=col).value
+
+        code = parse_str(cell(3))
+        project = parse_str(cell(4))
+        if not project and not code:
+            continue
+
+        tipo_sistema = parse_str(cell(11))   # BESS, PV, etc.
+        cuadrilla = parse_str(cell(10))
+
+        # Plan: cols 22 (inicio), 23 (duración días), 24 (fin)
+        plan_inicio = parse_date(cell(22))
+        plan_duracion = cell(23)
+        plan_fin = parse_date(cell(24))
+
+        # Real: cols 25 (inicio), 27 (fin)
+        real_inicio = parse_date(cell(25))
+        real_fin = parse_date(cell(27))
+
+        # Sin plan ni real → skip
+        if not (plan_inicio or plan_fin or real_inicio or real_fin):
+            saltadas += 1
+            continue
+
+        # Estado calculado según ejecución real
+        if real_fin:
+            estado = "Completado"
+        elif real_inicio:
+            estado = "En curso"
+        else:
+            estado = "Programado"
+
+        # Buscar existente por (project, fecha_programada, tipo)
+        existing = Mantenimiento.query.filter_by(
+            project=project, fecha_programada=plan_inicio, tipo=tipo_sistema
+        ).first()
+        target = existing or Mantenimiento(project=project, estado=estado)
+
+        _apply_non_empty(
+            target,
+            project=project,
+            code=code,
+            tipo=tipo_sistema or target.tipo,
+            estado=estado,
+            fecha_programada=plan_inicio,
+            fecha_fin_programada=plan_fin,
+            fecha_inicio_ejecucion=real_inicio,
+            fecha_fin_ejecucion=real_fin,
+            cuadrilla=cuadrilla,
+        )
+        # Duración días → horas estimadas (8h/día como aproximación)
+        try:
+            dur = float(plan_duracion) if plan_duracion not in (None, "") else None
+            if dur:
+                target.duracion_horas = dur * 8
+        except (TypeError, ValueError):
+            pass
+
+        if existing:
+            updated += 1
+            detalle.append({"project": project, "accion": "actualizado", "estado": estado})
+        else:
+            db.session.add(target)
+            created += 1
+            detalle.append({"project": project, "accion": "creado", "estado": estado})
+
+    db.session.commit()
+    log_change("importar", "planeacion-2026",
+               f"Planeación 2026: {created} nuevos, {updated} actualizados, {saltadas} sin datos")
+    return jsonify(
+        ok=True,
+        created=created,
+        updated=updated,
+        saltadas=saltadas,
+        total=created + updated,
+        hoja=sheet_name,
+        muestra=detalle[:10],
+    )
+
+
 @bp.route("/mantenimiento", methods=["POST"])
 @jwt_required()
 @admin_required

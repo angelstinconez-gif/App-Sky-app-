@@ -18,8 +18,15 @@ export default function ImportButton({ uploader, onDone, label = '📥 Importar 
     setBusy(true);
     try {
       const r = await uploader(file);
-      toast(`✅ ${r.imported || 0} registros importados`);
-      onDone?.(r.imported);
+      const c = r.created ?? 0;
+      const u = r.updated ?? 0;
+      const i = r.imported ?? (c + u);
+      if (c || u) {
+        toast(`✅ Importado: +${c} nuevos · ↻${u} actualizados`);
+      } else {
+        toast(`✅ ${i} registros importados`);
+      }
+      onDone?.(i);
     } catch (err) {
       toast(err?.response?.data?.message || 'Error al importar', 'error');
     } finally {

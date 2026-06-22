@@ -331,6 +331,8 @@ export default function Mantenimiento() {
             <>
               <a className="btn btn-sm" href="/templates/mantenimiento_template.xlsx" download>📄 Plantilla</a>
               <ImportButton uploader={importarApi.mantenimiento} onDone={load} />
+              <ImportButton uploader={importarApi.planeacion2026} onDone={load}
+                label="📋 Importar Planeación 2026" />
             </>
           )}
           <button className="btn btn-sm" onClick={() => downloadXLSX(items, 'Mantenimiento', `mantenimiento_${Date.now()}.xlsx`)}>⬇ Exportar</button>

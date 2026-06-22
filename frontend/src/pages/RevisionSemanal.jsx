@@ -123,9 +123,11 @@ export default function RevisionSemanal() {
 
   const onSave = async () => {
     if (!editing) return;
-    const noOk = form.estado !== 'OK';
+    // Estados problemáticos que SÍ ameritan ofrecer crear incidencia:
+    const PROBLEMA = ['Sin comunicación', 'Falla', 'Falta de datos'];
+    const esProblema = PROBLEMA.includes(form.estado);
     let generar = form.generarIncidencia;
-    if (noOk && !generar && !editing.incidenciaId) {
+    if (esProblema && !generar && !editing.incidenciaId) {
       generar = await window.skyConfirm(
         `El estado seleccionado es "${form.estado}".\n\n¿Deseas generar automáticamente una incidencia para dar seguimiento?`
       );
@@ -191,15 +193,16 @@ export default function RevisionSemanal() {
 
   const onBulkSave = async () => {
     if (selected.size === 0) return toast('Selecciona al menos una planta', 'error');
-    const noOk = bulkEstado !== 'OK';
+    const PROBLEMA = ['Sin comunicación', 'Falla', 'Falta de datos'];
+    const esProblema = PROBLEMA.includes(bulkEstado);
     let generar = false;
-    if (noOk) {
+    if (esProblema) {
       generar = await window.skyConfirm(
         `Vas a marcar ${selected.size} planta(s) con estado "${bulkEstado}".\n\n` +
         `¿Generar automáticamente una incidencia para cada una?`
       );
     } else {
-      if (!await window.skyConfirm(`Vas a marcar ${selected.size} planta(s) como "OK" para el ${fecha}.\n\n¿Continuar?`)) return;
+      if (!await window.skyConfirm(`Vas a marcar ${selected.size} planta(s) como "${bulkEstado}" para el ${fecha}.\n\n¿Continuar?`)) return;
     }
     setSavingBulk(true);
     try {
@@ -512,7 +515,7 @@ export default function RevisionSemanal() {
                 style={{ width: '100%' }} />
             </div>
 
-            {form.estado !== 'OK' && !editing.incidenciaId && (
+            {['Sin comunicación', 'Falla', 'Falta de datos'].includes(form.estado) && !editing.incidenciaId && (
               <div style={{
                 background: '#fef3c7', border: '1px solid #fde68a',
                 borderLeft: '4px solid #f59e0b', padding: 10, borderRadius: 6,

@@ -108,6 +108,7 @@ export const importarApi = {
   errores: uploadFile('/importar/errores'),
   directorio: uploadFile('/importar/directorio'),
   mantenimiento: uploadFile('/importar/mantenimiento'),
+  planeacion2026: uploadFile('/importar/planeacion-2026'),
 };
 
 export const assigneesApi = {
