@@ -215,6 +215,92 @@ def marcar_pv():
     return jsonify(ok=True, cambios=cambios)
 
 
+@bp.route("", methods=["GET"])
+@jwt_required()
+def list_polizas():
+    _ensure_cobertura_col()
+    _auto_marcar_monitoreo()
+    args = request.args
+    query = Poliza.query
+    if args.get("grupo"):
+        query = query.filter(Poliza.grupo == args["grupo"])
+    if args.get("zona"):
+        query = query.filter(Poliza.zona == args["zona"])
+    if args.get("status"):
+        query = query.filter(Poliza.status == args["status"])
+    if args.get("cobertura"):
+        query = query.filter(Poliza.cobertura == args["cobertura"])
+    if args.get("q"):
+        like = f"%{args['q']}%"
+        query = query.filter(or_(Poliza.project.ilike(like), Poliza.code.ilike(like)))
+    items = query.order_by(Poliza.item.asc().nullslast(), Poliza.id.asc()).all()
+    return jsonify([i.to_dict() for i in items])
+
+
+@bp.route("", methods=["POST"])
+@jwt_required()
+@role_required("admin")
+def create_poliza():
+    data = request.get_json(silent=True) or {}
+    if not data.get("project"):
+        return jsonify(error="missing_project"), 400
+    p = Poliza(project=parse_str(data["project"]))
+    _apply(p, data)
+    db.session.add(p)
+    db.session.flush()
+    log_change("polizas", "crear", p.project, new=p.to_dict())
+    db.session.commit()
+    return jsonify(p.to_dict()), 201
+
+
+@bp.route("/<int:item_id>", methods=["PUT"])
+@jwt_required()
+@role_required("admin")
+def update_poliza(item_id):
+    p = db.session.get(Poliza, item_id)
+    if not p:
+        return jsonify(error="not_found"), 404
+    old = p.to_dict()
+    _apply(p, request.get_json(silent=True) or {})
+    log_change("polizas", "editar", p.project, old=old, new=p.to_dict())
+    db.session.commit()
+    return jsonify(p.to_dict())
+
+
+@bp.route("/<int:item_id>", methods=["DELETE"])
+@jwt_required()
+@role_required("admin")
+def delete_poliza(item_id):
+    p = db.session.get(Poliza, item_id)
+    if not p:
+        return jsonify(error="not_found"), 404
+    log_change("polizas", "eliminar", p.project, old=p.to_dict())
+    db.session.delete(p)
+    db.session.commit()
+    return jsonify(ok=True)
+
+
+def _apply(p: Poliza, data: dict):
+    p.item = parse_int(data.get("item"))
+    p.grupo = parse_str(data.get("grupo"))
+    p.code = parse_str(data.get("code"))
+    p.project = parse_str(data.get("project")) or p.project
+    p.tarifa = parse_str(data.get("tarifa"))
+    p.platform = parse_str(data.get("platform"))
+    p.panels = parse_str(data.get("panels"))
+    p.inv = parse_str(data.get("inv"))
+    p.sys_start = parse_date(data.get("sysStart"))
+    p.pol_start = parse_date(data.get("polStart"))
+    p.pol_end = parse_date(data.get("polEnd"))
+    p.status = parse_str(data.get("status"))
+    p.poliza = parse_str(data.get("poliza"))
+    p.cobertura = parse_str(data.get("cobertura"))
+    if "monitoreo" in data:
+        p.monitoreo = bool(data.get("monitoreo"))
+    p.zona = parse_str(data.get("zona"))
+    p.cuadrilla = parse_str(data.get("cuadrilla"))
+
+
 @bp.route("/zonas", methods=["GET"])
 @jwt_required()
 def list_zonas():
@@ -242,4 +328,4 @@ def list_plataformas():
         .order_by(Poliza.platform.asc())
         .all()
     )
-    return jsonify([r[0] for r in rows])
+    return 
