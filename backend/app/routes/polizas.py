@@ -76,9 +76,12 @@ def _ensure_cobertura_col():
 
 
 def _auto_marcar_monitoreo():
-    """Marca con monitoreo=True las pólizas de la lista hardcoded.
-    SOLO actualiza pólizas que YA existen (no crea nuevas). Idempotente.
-    Una vez por instancia."""
+    """SINCRONIZA monitoreo=True/False con la lista hardcoded de proyectos.
+
+    - Las que están en la lista (match EXACTO case-insensitive) → monitoreo=True
+    - Las que NO están en la lista → monitoreo=False
+    - No crea pólizas nuevas.
+    - Idempotente. Una vez por instancia."""
     global _monitoreo_marked
     if _monitoreo_marked:
         return
@@ -87,23 +90,21 @@ def _auto_marcar_monitoreo():
         def _norm(s): return (s or "").strip().lower()
         objetivos = {_norm(p) for p in _MONITOREO_PLANTAS}
         marcadas = 0
+        desmarcadas = 0
         all_pol = Poliza.query.all()
         for p in all_pol:
             key = _norm(p.project)
-            if key in objetivos and not p.monitoreo:
+            deberia = key in objetivos
+            actual = bool(getattr(p, "monitoreo", False))
+            if deberia and not actual:
                 p.monitoreo = True
                 marcadas += 1
-                continue
-            # Fuzzy: nombre contenido en cualquiera de los objetivos
-            for obj in objetivos:
-                if len(obj) >= 6 and (obj in key or key in obj):
-                    if not p.monitoreo:
-                        p.monitoreo = True
-                        marcadas += 1
-                    break
-        if marcadas:
+            elif not deberia and actual:
+                p.monitoreo = False
+                desmarcadas += 1
+        if marcadas or desmarcadas:
             db.session.commit()
-            print(f"👁️  Auto-marcado: {marcadas} pólizas con monitoreo=True")
+            print(f"👁️  Auto-sync Monitoreo: +{marcadas} marcadas, -{desmarcadas} desmarcadas")
     except Exception as e:
         db.session.rollback()
         print(f"⚠️  auto_marcar_monitoreo falló: {e}")
