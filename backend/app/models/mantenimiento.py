@@ -45,10 +45,10 @@ class Mantenimiento(db.Model):
         return []
 
     def dias_en_ejecucion(self):
-        """Días que lleva en ejecución.
+        """Días que lleva en ejecución (conteo INCLUSIVO: mismo día = 1 día).
 
-        - Si tiene inicio Y fin: días de duración total (fin - inicio).
-        - Si tiene solo inicio: días que LLEVA en ejecución (hoy - inicio).
+        - Si tiene inicio Y fin: días reales en sitio = (fin - inicio) + 1.
+        - Si tiene solo inicio: días que LLEVA en ejecución = (hoy - inicio) + 1.
         - Si no tiene inicio: None.
         """
         ini = self.fecha_inicio_ejecucion
@@ -56,17 +56,17 @@ class Mantenimiento(db.Model):
             return None
         fin = self.fecha_fin_ejecucion or self.fecha_ejecutada
         if fin:
-            return max(0, (fin - ini).days)
-        # En curso → días desde inicio hasta hoy
-        return max(0, (datetime.utcnow().date() - ini).days)
+            return max(1, (fin - ini).days + 1)
+        # En curso → días desde inicio hasta hoy (mínimo 1 si ya empezó hoy)
+        return max(1, (datetime.utcnow().date() - ini).days + 1)
 
     def dias_programados(self):
-        """Días planeados entre fecha programada inicio y fin (planificación)."""
+        """Días planeados (conteo INCLUSIVO: mismo día = 1 día)."""
         ini = self.fecha_programada
         fin = self.fecha_fin_programada
         if not ini or not fin:
             return None
-        return max(0, (fin - ini).days)
+        return max(1, (fin - ini).days + 1)
 
     def dias_en_sitio(self):
         """Alias: días que el equipo lleva en sitio (igual que dias_en_ejecucion)."""

@@ -317,7 +317,7 @@ def import_planeacion_2026():
         if not project and not code:
             continue
 
-        tipo_sistema = parse_str(cell(11))   # BESS, PV, etc.
+        sistema = parse_str(cell(11))        # BESS, PV, etc. (tipo de sistema)
         cuadrilla = parse_str(cell(10))
 
         # Plan: cols 22 (inicio), 23 (duración días), 24 (fin)
@@ -334,6 +334,11 @@ def import_planeacion_2026():
             saltadas += 1
             continue
 
+        # Si fechas planeadas iguales → considerar 1 día (inclusivo)
+        if plan_inicio and plan_fin and plan_fin == plan_inicio:
+            # Mantenemos las fechas como vienen pero el cálculo de días será +1
+            pass
+
         # Estado calculado según ejecución real
         if real_fin:
             estado = "Completado"
@@ -342,22 +347,34 @@ def import_planeacion_2026():
         else:
             estado = "Programado"
 
+        # Tipo de mantenimiento: por defecto "Preventivo" para BESS y FV;
+        # se ajusta si el código indica lo contrario.
+        tipo_mantto = "Preventivo"
+        if sistema:
+            tipo_mantto = f"Preventivo {sistema}"   # ej: "Preventivo BESS"
+
         # Buscar existente por (project, fecha_programada, tipo)
         existing = Mantenimiento.query.filter_by(
-            project=project, fecha_programada=plan_inicio, tipo=tipo_sistema
+            project=project, fecha_programada=plan_inicio, tipo=tipo_mantto
         ).first()
+        # Tolerar variantes anteriores (sin sufijo)
+        if not existing:
+            existing = Mantenimiento.query.filter_by(
+                project=project, fecha_programada=plan_inicio, tipo=sistema
+            ).first()
         target = existing or Mantenimiento(project=project, estado=estado)
 
         _apply_non_empty(
             target,
             project=project,
             code=code,
-            tipo=tipo_sistema or target.tipo,
+            tipo=tipo_mantto,
             estado=estado,
             fecha_programada=plan_inicio,
             fecha_fin_programada=plan_fin,
             fecha_inicio_ejecucion=real_inicio,
             fecha_fin_ejecucion=real_fin,
+            fecha_ejecutada=real_fin,       # compat con campo legacy
             cuadrilla=cuadrilla,
         )
         # Duración días → horas estimadas (8h/día como aproximación)
@@ -480,19 +497,20 @@ def import_errores():
             target,
             equipment=parse_str(g(row, "equipment", "equipo")),
             classification=parse_str(g(row, "classification", "clasificacion")),
-            tipo=parse_str(g(row, "tipo", "type")),
-            problem=parse_str(g(row, "problem", "problema", "alarma")),
-            cause=parse_str(g(row, "cause", "causa", "causa probable")),
-            solution=parse_str(g(row, "solution", "solucion", "solucion posible")),
-            impact=parse_str(g(row, "impact", "impacto", "impacto operativo")),
-            source_url=parse_str(g(row, "source_url", "url", "fuente url")),
-            priority=parse_str(g(row, "priority", "prioridad")),
+            tipo=parse_str(g(row, "tipo", "tipo de error", "tipoError")),
+            description=parse_str(g(row, "description", "descripcion")),
+            cause=parse_str(g(row, "cause", "causa")),
+            solution=parse_str(g(row, "solution", "solucion")),
+            severity=parse_str(g(row, "severity", "severidad")),
+            es_general=bool(g(row, "es_general", "esGeneral")),
+            manual=bool(g(row, "manual")),
         )
         if existing:
             updated += 1
         else:
             db.session.add(target)
             created += 1
+
     log_change("importar", "errores", f"{created} nuevos, {updated} actualizados")
     db.session.commit()
     return jsonify(ok=True, created=created, updated=updated)

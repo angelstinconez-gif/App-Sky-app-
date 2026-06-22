@@ -418,7 +418,18 @@ def register_seed_cli(app):
             total_p = Poliza.query.count()
             click.echo(f"✅ Pólizas: {total_p} total ({created_p} creadas, {updated_p} actualizadas, {errors_p} con error)")
 
+            # ── Incidencias UPSERT por (site, problem, err_code) ──
+            # ANTES insertaba ciegamente y duplicaba en cada deploy.
+            def _n(s): return (s or "").strip().lower()
+            existing_inc_keys = set()
+            for x in Incidencia.query.all():
+                existing_inc_keys.add((_n(x.site), _n(x.problem), _n(x.err_code)))
+            seed_inc_creadas = 0
             for i in SEED_INCIDENCIAS:
+                key = (_n(i.get("site")), _n(i.get("problem")), _n(i.get("errCode")))
+                if key in existing_inc_keys:
+                    continue
+                existing_inc_keys.add(key)
                 db.session.add(Incidencia(
                     platform=i.get("platform"), num=i.get("num"),
                     site=i["site"], client=i.get("client"), code=i.get("code"),
@@ -433,10 +444,29 @@ def register_seed_cli(app):
                     ticket_date=parse_date(i.get("ticketDate")),
                     status="abierta",
                 ))
+                seed_inc_creadas += 1
             db.session.commit()
-            click.echo(f"✅ Incidencias: {Incidencia.query.count()}")
+            click.echo(f"✅ Incidencias: {Incidencia.query.count()} (+{seed_inc_creadas} nuevas del seed)")
 
+            # ── Garantías UPSERT por (project, ticket, error, sn) ──
+            # ANTES: db.session.add(Garantia(...)) creaba duplicados en cada deploy.
+            # AHORA: si ya existe esa combinación, no se inserta.
+            def _norm(s): return (s or "").strip().lower()
+            existing_keys = set()
+            for existing in Garantia.query.all():
+                existing_keys.add((
+                    _norm(existing.project), _norm(existing.ticket),
+                    _norm(existing.error), _norm(existing.sn),
+                ))
+            seed_creadas = 0
             for g in SEED_GARANTIAS:
+                key = (
+                    _norm(g.get("project")), _norm(g.get("ticket")),
+                    _norm(g.get("error")), _norm(g.get("sn")),
+                )
+                if key in existing_keys:
+                    continue
+                existing_keys.add(key)
                 db.session.add(Garantia(
                     project=g["project"], equipment=g.get("equipment"),
                     brand=g.get("brand"), model=g.get("model"), sn=g.get("sn"),
@@ -445,8 +475,9 @@ def register_seed_cli(app):
                     status=g.get("status"),
                     upload_date=parse_date(g.get("uploadDate")),
                 ))
+                seed_creadas += 1
             db.session.commit()
-            click.echo(f"✅ Garantías: {Garantia.query.count()}")
+            click.echo(f"✅ Garantías: {Garantia.query.count()} (+{seed_creadas} nuevas del seed)")
 
             try:
                 from app.seeds.directorio_full import FULL_DIRECTORIO
