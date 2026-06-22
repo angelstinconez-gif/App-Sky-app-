@@ -59,29 +59,6 @@ export default function Polizas() {
     }
   };
 
-  const [marcandoMonitoreo, setMarcandoMonitoreo] = useState(false);
-  const onMarcarMonitoreoInicial = async () => {
-    if (!await window.skyConfirm(
-      'Va a marcar con Monitoreo=SÍ las 84 plantas iniciales que definiste.\n\n' +
-      'Idempotente: si ya están marcadas, no hace nada.\n¿Continuar?'
-    )) return;
-    setMarcandoMonitoreo(true);
-    try {
-      const r = await api.post('/admin-fix/setup-monitoreo-inicial');
-      const d = r.data;
-      let msg = `✓ ${d.marcadasExactas} plantas marcadas (match exacto)\n`;
-      if (d.encontradasFuzzy) msg += `+ ${d.encontradasFuzzy} encontradas por nombre parcial\n`;
-      if (d.noEncontradas) msg += `⚠️ ${d.noEncontradas} sin encontrar:\n${d.sinMatch.join('\n')}`;
-      msg += `\n\nTotal plantas con Monitoreo activo: ${d.total}`;
-      await window.skyAlert(msg);
-      setReloadKey((k) => k + 1);
-    } catch (e) {
-      await window.skyAlert('Error: ' + (e?.response?.data?.message || e.message));
-    } finally {
-      setMarcandoMonitoreo(false);
-    }
-  };
-
   const extra = hasRole('admin') ? (
     <>
       <a className="btn btn-sm" href="/templates/polizas_template.xlsx" download
@@ -95,14 +72,6 @@ export default function Polizas() {
           fontWeight: 600,
         }}>
         {classifying ? <span className="spinner" /> : '⚡ Auto-clasificar PV/BESS/Híbrido'}
-      </button>
-      <button className="btn btn-sm" onClick={onMarcarMonitoreoInicial} disabled={marcandoMonitoreo}
-        title="Marca con Monitoreo=SÍ las 84 plantas iniciales"
-        style={{
-          background: '#dcfce7', color: '#166534', borderColor: '#86efac',
-          fontWeight: 600,
-        }}>
-        {marcandoMonitoreo ? <span className="spinner" /> : '👁️ Marcar 84 plantas Monitoreo'}
       </button>
       <ImportButton uploader={importarApi.polizas} onDone={() => setReloadKey((k) => k + 1)}
         label="📥 Importar pólizas" />
