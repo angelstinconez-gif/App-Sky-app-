@@ -123,7 +123,7 @@ def list_plantas():
 
     # Pólizas PV vigentes
     polizas = Poliza.query.all()
-    pv = [p for p in polizas if _es_pv(p) and _es_vigente(p)]   # solo PV en garantía vigente
+    pv = [p for p in polizas if getattr(p, 'monitoreo', False)]   # SOLO plantas marcadas con Monitoreo
 
     # Trae todas las revisiones del proyecto en cuestión (un poco amplio, pero simple)
     # Indexamos por project (lowercase) y mantenemos lista de RevisionSemanal
@@ -210,7 +210,7 @@ def reporte_html():
     dia_labels = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
     polizas = Poliza.query.all()
-    pv = [p for p in polizas if _es_pv(p) and _es_vigente(p)]
+    pv = [p for p in polizas if getattr(p, 'monitoreo', False)]
     revs_all = RevisionSemanal.query.all()
     by_project = {}
     for r in revs_all:
@@ -361,7 +361,7 @@ def heatmap():
         dias.append({"fecha": dia.isoformat(), "label": dia.strftime("%d/%m")})
 
     polizas = Poliza.query.all()
-    pv = [p for p in polizas if _es_pv(p) and _es_vigente(p)]   # solo PV en garantía vigente
+    pv = [p for p in polizas if getattr(p, 'monitoreo', False)]   # SOLO plantas marcadas con Monitoreo
     revs_all = RevisionSemanal.query.all()
     by_project = {}
     for r in revs_all:

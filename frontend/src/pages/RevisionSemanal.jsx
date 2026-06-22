@@ -317,7 +317,15 @@ export default function RevisionSemanal() {
     },
   ].filter(Boolean), [canEdit, selected, filtered]);
 
-  const pctComplete = data.total ? Math.round((data.revisadas / data.total) * 100) : 0;
+  // Cumplimiento: EXCLUYE plantas con estado "Por entregar" o "No aplica"
+  // (no cuentan ni en el numerador ni en el denominador)
+  const SIN_REVISION = ['Por entregar', 'No aplica'];
+  const plantasContables = (data.plantas || []).filter(
+    (p) => !SIN_REVISION.includes(p.estado)
+  );
+  const totalContables = plantasContables.length;
+  const revisadasContables = plantasContables.filter((p) => p.estado).length;
+  const pctComplete = totalContables ? Math.round((revisadasContables / totalContables) * 100) : 0;
 
   return (
     <div>
@@ -374,8 +382,8 @@ export default function RevisionSemanal() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
         <Kpi label="Total plantas" value={data.total} color="#1E3A5F" />
-        <Kpi label="Revisadas hoy" value={data.revisadas} color="#0EA5E9" />
-        <Kpi label="Pendientes" value={data.pendientes} color="#F59E0B" />
+        <Kpi label="Revisadas hoy" value={revisadasContables} color="#0EA5E9" />
+        <Kpi label="Pendientes" value={totalContables - revisadasContables} color="#F59E0B" />
         <Kpi label="Cumplimiento" value={`${pctComplete}%`}
           color={pctComplete === 100 ? '#16A34A' : pctComplete >= 50 ? '#F59E0B' : '#DC2626'} />
       </div>
