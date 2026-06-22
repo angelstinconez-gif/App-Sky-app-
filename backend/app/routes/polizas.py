@@ -11,6 +11,28 @@ from app.utils.parse import parse_date, parse_int, parse_str
 
 bp = Blueprint("polizas", __name__)
 
+# Auto-añadir columna `cobertura` la primera vez que se llama (flag volátil)
+_cobertura_col_ok = False
+
+
+def _ensure_cobertura_col():
+    global _cobertura_col_ok
+    if _cobertura_col_ok:
+        return
+    _cobertura_col_ok = True
+    try:
+        from sqlalchemy import inspect, text
+        insp = inspect(db.engine)
+        if not insp.has_table("polizas"):
+            return
+        cols = {c["name"] for c in insp.get_columns("polizas")}
+        if "cobertura" not in cols:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE polizas ADD COLUMN cobertura VARCHAR(30)"))
+            print("➕ Columna polizas.cobertura creada")
+    except Exception as e:
+        print(f"⚠️  ensure_cobertura_col falló: {e}")
+
 
 def _tipo_desde_codigo(code):
     """Deriva el tipo de póliza desde el código.
@@ -150,8 +172,14 @@ def list_plataformas():
 @bp.route("", methods=["GET"])
 @jwt_required()
 def list_polizas():
+    _ensure_cobertura_col()
     args = request.args
     query = Poliza.query
+    if args.get("cobertura"):
+        query = query.filter(Poliza.cobertura == args["cobertura"])
+    if args.get("tieneOperacion") in ("1", "true", "yes"):
+        from sqlalchemy import func
+        query = query.filter(func.lower(Poliza.cobertura).in_(["completo", "operación", "operacion"]))
     if args.get("grupo"):
         query = query.filter(Poliza.grupo == args["grupo"])
     if args.get("zona"):
@@ -179,6 +207,7 @@ def _apply(p: Poliza, data: dict):
     p.pol_end = parse_date(data.get("polEnd"))
     p.status = parse_str(data.get("status"))
     p.poliza = parse_str(data.get("poliza"))
+    p.cobertura = parse_str(data.get("cobertura"))
     p.zona = parse_str(data.get("zona"))
     p.cuadrilla = parse_str(data.get("cuadrilla"))
 

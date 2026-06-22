@@ -60,6 +60,7 @@ export default function Mantenimiento() {
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [tipo, setTipo] = useState('');
+  const [mes, setMes] = useState('');  // YYYY-MM o '' para todos
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
@@ -147,6 +148,18 @@ export default function Mantenimiento() {
     await mantenimientoApi.remove(id);
     toast('Eliminado'); load();
   };
+
+  // Filtrar items por mes (fecha programada O fecha de inicio ejecución)
+  const filteredItems = useMemo(() => {
+    if (!mes) return items;
+    return items.filter((m) => {
+      const fp = (m.fechaProgramada || '').slice(0, 7);
+      const ff = (m.fechaFinProgramada || '').slice(0, 7);
+      const fi = (m.fechaInicioEjecucion || '').slice(0, 7);
+      const fe = (m.fechaFinEjecucion || m.fechaEjecutada || '').slice(0, 7);
+      return fp === mes || ff === mes || fi === mes || fe === mes;
+    });
+  }, [items, mes]);
 
   const columns = useMemo(() => {
     const cols = [
@@ -355,9 +368,19 @@ export default function Mantenimiento() {
           <option value="">Todos los tipos</option>
           {TIPOS.map((t) => <option key={t}>{t}</option>)}
         </select>
+        <input type="month" className="filter-input" value={mes}
+          onChange={(e) => setMes(e.target.value)}
+          title="Filtra por mes (fecha programada o ejecutada)"
+          style={{ minWidth: 130 }} />
+        {mes && (
+          <button className="btn btn-sm" onClick={() => setMes('')}>× mes</button>
+        )}
+        <span style={{ fontSize: 11, color: 'var(--gray-500)', alignSelf: 'center' }}>
+          {filteredItems.length} de {items.length}
+        </span>
       </div>
 
-      {loading ? <div className="empty"><span className="spinner" /></div> : <DataTable columns={columns} data={items} />}
+      {loading ? <div className="empty"><span className="spinner" /></div> : <DataTable columns={columns} data={filteredItems} />}
 
       <Modal
         open={open} onClose={() => setOpen(false)}

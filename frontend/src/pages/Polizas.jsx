@@ -118,6 +118,32 @@ export default function Polizas() {
             );
           },
         },
+        {
+          key: 'cobertura', label: 'Cobertura',
+          render: (r) => {
+            const c = (r.cobertura || '').trim();
+            const styles = {
+              'Completo':      { bg: '#dcfce7', fg: '#166534' },
+              'Eléctrico':     { bg: '#fee2e2', fg: '#991b1b' },
+              'Mantenimiento': { bg: '#fef3c7', fg: '#92400e' },
+              'Operación':     { bg: '#dbeafe', fg: '#1e40af' },
+            };
+            const s = styles[c] || { bg: '#f3f4f6', fg: '#6b7280' };
+            if (!c) return <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>—</span>;
+            return (
+              <span style={{
+                background: s.bg, color: s.fg,
+                padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+              }}>{c}</span>
+            );
+          },
+        },
+        {
+          key: 'tieneOperacion', label: 'Operación',
+          render: (r) => r.tieneOperacion
+            ? <span style={{ background: '#0033A0', color: 'white', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>SÍ ✓</span>
+            : <span style={{ color: 'var(--gray-400)', fontSize: 11 }}>—</span>,
+        },
         { key: 'sysStart', label: 'Inicio sistema', render: (r) => fmtDate(r.sysStart) },
         { key: 'polStart', label: 'Inicio póliza', render: (r) => fmtDate(r.polStart) },
         { key: 'polEnd', label: 'Fin póliza', render: (r) => fmtDate(r.polEnd) },
@@ -152,7 +178,12 @@ export default function Polizas() {
         { key: 'sysStart', label: 'Inicio del sistema', type: 'date' },
         { key: 'polStart', label: 'Inicio de póliza/garantía *', type: 'date' },
         { key: 'polEnd', label: 'Fin de póliza/garantía *', type: 'date' },
-        { key: 'poliza', label: 'Tipo de póliza' },
+        { key: 'poliza', label: 'Tipo de sistema (PV/BESS/Híbrido)' },
+        {
+          key: 'cobertura', label: 'Cobertura de la póliza',
+          type: 'select',
+          options: ['', 'Completo', 'Eléctrico', 'Mantenimiento', 'Operación'],
+        },
         { key: 'zona', label: 'Zona' },
         { key: 'cuadrilla', label: 'Cuadrilla' },
       ]}

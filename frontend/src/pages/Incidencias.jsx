@@ -317,9 +317,16 @@ export default function Incidencias() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const end = new Date(pol.polEnd);
     const dias = Math.floor((end - today) / 86400000);
-    if (dias < 0) return { vigente: false, pol, msg: `Vencida hace ${-dias} días` };
-    if (dias <= 30) return { vigente: true, pol, msg: `Vence en ${dias} días ⚠️`, porVencer: true };
-    return { vigente: true, pol, msg: `Vigente (${dias}d)` };
+    const baseInfo = { pol, tieneOperacion: !!pol.tieneOperacion, cobertura: pol.cobertura };
+    if (dias < 0) {
+      // Vencida — pero si tiene cobertura de Operación, sigue activa para incidencias
+      if (pol.tieneOperacion) {
+        return { ...baseInfo, vigente: true, msg: `Vencida hace ${-dias}d · cubierta por Operación ✓`, porOperacion: true };
+      }
+      return { ...baseInfo, vigente: false, msg: `Vencida hace ${-dias} días` };
+    }
+    if (dias <= 30) return { ...baseInfo, vigente: true, msg: `Vence en ${dias} días ⚠️`, porVencer: true };
+    return { ...baseInfo, vigente: true, msg: `Vigente (${dias}d)` };
   };
 
   // ── Modal rápido para generar ticket desde una incidencia existente ──
@@ -735,6 +742,14 @@ export default function Incidencias() {
                 }}>
                   Póliza: {info.msg}
                 </span>
+                {info.tieneOperacion && (
+                  <span style={{
+                    background: '#0033A0', color: 'white',
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                  }} title={`Cobertura: ${info.cobertura}`}>
+                    ⚙️ Operación
+                  </span>
+                )}
               </div>
 
               <div className="form-grid">

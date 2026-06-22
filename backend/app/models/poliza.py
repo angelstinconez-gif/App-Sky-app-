@@ -20,11 +20,18 @@ class Poliza(db.Model):
     pol_start = db.Column(db.Date)
     pol_end = db.Column(db.Date)
     status = db.Column(db.String(40), index=True)   # Vigente / Vencida
-    poliza = db.Column(db.String(120))              # COMPLETO, BESS, GENERACIÓN, etc.
+    poliza = db.Column(db.String(120))              # Tipo de sistema: PV, BESS, Híbrido
+    cobertura = db.Column(db.String(30), index=True)  # Tipo de Póliza: Completo / Eléctrico / Mantenimiento / Operación
     zona = db.Column(db.String(80), index=True)
     cuadrilla = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def tiene_operacion(self):
+        """True si la cobertura incluye Operación (Completo o Operación)."""
+        c = (self.cobertura or "").strip().lower()
+        return c in ("completo", "operación", "operacion")
 
     def computed_status(self):
         """Recalcula vigente/vencida según pol_end vs hoy."""
@@ -48,6 +55,8 @@ class Poliza(db.Model):
             "polEnd": self.pol_end.isoformat() if self.pol_end else None,
             "status": self.computed_status(),
             "poliza": self.poliza,
+            "cobertura": self.cobertura,
+            "tieneOperacion": self.tiene_operacion,
             "zona": self.zona,
             "cuadrilla": self.cuadrilla,
         }
