@@ -18,6 +18,7 @@ class Garantia(db.Model):
     supplier = db.Column(db.String(120))
     contact = db.Column(db.String(200))
     ticket = db.Column(db.String(80))
+    caso = db.Column(db.String(80), index=True)             # número de caso interno
     status = db.Column(db.String(80), index=True)
     upload_date = db.Column(db.Date)
     abierto_por = db.Column(db.String(160))                 # persona que abrió el ticket con el proveedor
@@ -51,6 +52,7 @@ class Garantia(db.Model):
             "supplier": self.supplier,
             "contact": self.contact,
             "ticket": self.ticket,
+            "caso": self.caso,
             "status": self.status,
             "uploadDate": self.upload_date.isoformat() if self.upload_date else None,
             "abiertoPor": self.abierto_por,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, AlertTriangle, WifiOff, FileQuestion, ChevronLeft, ChevronRight, Calendar, Save, LayoutGrid, FileText, Download } from 'lucide-react';
+import { Check, AlertTriangle, WifiOff, FileQuestion, ChevronLeft, ChevronRight, Calendar, Save, LayoutGrid, FileText, Download, Package, MinusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { revsemApi } from '../api/endpoints';
 import { useToast } from '../components/Toast';
@@ -14,6 +14,8 @@ const ESTADOS = [
   { id: 'Sin comunicación',  label: 'Sin comunicación',  bg: '#fef3c7', fg: '#92400e', icon: WifiOff },
   { id: 'Falla',             label: 'Falla',             bg: '#fee2e2', fg: '#991b1b', icon: AlertTriangle },
   { id: 'Falta de datos',    label: 'Falta de datos',    bg: '#dbeafe', fg: '#1e40af', icon: FileQuestion },
+  { id: 'Por entregar',      label: 'Por entregar',      bg: '#ede9fe', fg: '#5b21b6', icon: Package },
+  { id: 'No aplica',         label: 'No aplica',         bg: '#e5e7eb', fg: '#374151', icon: MinusCircle },
 ];
 
 const HEAT_COLORS = {
@@ -21,6 +23,8 @@ const HEAT_COLORS = {
   'Sin comunicación': '#f59e0b',
   'Falla': '#dc2626',
   'Falta de datos': '#3b82f6',
+  'Por entregar': '#7c3aed',
+  'No aplica': '#6b7280',
 };
 
 function isoFromDate(d) {
@@ -63,14 +67,24 @@ export default function RevisionSemanal() {
 
   const isToday = fecha === todayISO();
 
-  const load = () => {
-    setLoading(true);
-    revsemApi.plantas({ fecha })
-      .then(setData)
+  // load(showSpinner): carga datos. Si showSpinner=false, NO muestra spinner
+  // y MANTIENE la posición de scroll + página actual de la tabla.
+  const load = (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
+    // Guarda scroll actual para restaurarlo después
+    const scrollY = window.scrollY;
+    return revsemApi.plantas({ fecha })
+      .then((d) => {
+        setData(d);
+        // Restaurar scroll después de que React re-renderee
+        if (!showSpinner) {
+          requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+        }
+      })
       .catch(() => toast('Error al cargar', 'error'))
-      .finally(() => setLoading(false));
+      .finally(() => { if (showSpinner) setLoading(false); });
   };
-  useEffect(() => { load(); setSelected(new Set()); /* eslint-disable-next-line */ }, [fecha]);
+  useEffect(() => { load(true); setSelected(new Set()); /* eslint-disable-next-line */ }, [fecha]);
 
   const loadHeatmap = () => {
     setHeatLoading(true);
@@ -132,7 +146,7 @@ export default function RevisionSemanal() {
         toast('Revisión guardada');
       }
       setEditing(null);
-      load();
+      load(false);   // ← recarga SIN spinner, mantiene página/scroll
       if (heatmap) loadHeatmap();
     } catch (e) {
       toast(e?.response?.data?.message || 'Error al guardar', 'error');
@@ -197,7 +211,7 @@ export default function RevisionSemanal() {
       const inc = r.incidenciasGeneradas?.length || 0;
       toast(`✓ ${r.total} revisión(es) guardada(s)${inc > 0 ? ` · ${inc} incidencia(s) creada(s)` : ''}`);
       setSelected(new Set());
-      load();
+      load(false);   // ← recarga SIN spinner, mantiene página/scroll
       if (heatmap) loadHeatmap();
     } catch (e) {
       toast(e?.response?.data?.message || 'Error al guardar', 'error');

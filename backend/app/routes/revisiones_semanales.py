@@ -216,11 +216,14 @@ def reporte_html():
         "Sin comunicación": ("#fef3c7", "#92400e", "📡"),
         "Falla":            ("#fee2e2", "#991b1b", "✗"),
         "Falta de datos":   ("#dbeafe", "#1e40af", "?"),
+        "Por entregar":     ("#ede9fe", "#5b21b6", "📦"),
+        "No aplica":        ("#e5e7eb", "#374151", "N/A"),
     }
     pendiente_style = ("#f3f4f6", "#94a3b8", "—")
 
     rows_html = ""
-    totals = {"OK": 0, "Sin comunicación": 0, "Falla": 0, "Falta de datos": 0, "Pendiente": 0}
+    totals = {"OK": 0, "Sin comunicación": 0, "Falla": 0, "Falta de datos": 0,
+              "Por entregar": 0, "No aplica": 0, "Pendiente": 0}
     revisadas_unicas = 0
 
     for p in sorted(pv, key=lambda x: (x.project or "").lower()):
@@ -329,6 +332,8 @@ tr:nth-child(even) td{{background:#fafbfc}}
     <span><i style="background:#fef3c7;color:#92400e">📡</i> Sin comunicación</span>
     <span><i style="background:#fee2e2;color:#991b1b">✗</i> Falla</span>
     <span><i style="background:#dbeafe;color:#1e40af">?</i> Falta de datos</span>
+    <span><i style="background:#ede9fe;color:#5b21b6">📦</i> Por entregar</span>
+    <span><i style="background:#e5e7eb;color:#374151">N/A</i> No aplica</span>
     <span><i style="background:#fafbfc;color:#cbd5e1">·</i> Sin revisar</span>
   </div>
 </div>

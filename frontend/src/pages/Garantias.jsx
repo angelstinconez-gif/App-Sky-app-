@@ -27,7 +27,7 @@ const STATUS_STYLE = {
 
 const empty = {
   project: '', code: '', equipment: '', brand: '', model: '', sn: '',
-  error: '', supplier: '', contact: '', ticket: '',
+  error: '', supplier: '', contact: '', ticket: '', caso: '',
   status: 'En revisión',
   uploadDate: new Date().toISOString().slice(0, 10),
   abiertoPor: '',
@@ -182,7 +182,13 @@ export default function Garantias() {
       },
       { key: 'error', label: 'Error' },
       { key: 'supplier', label: 'Proveedor' },
-      { key: 'ticket', label: 'Ticket' },
+      { key: 'ticket', label: 'Ticket prov.' },
+      {
+        key: 'caso', label: '# Caso',
+        render: (r) => r.caso
+          ? <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#0033A0' }}>#{r.caso}</span>
+          : <span style={{ color: 'var(--gray-400)' }}>—</span>,
+      },
       {
         key: 'abiertoPor', label: 'Abrió ticket',
         render: (r) => r.abiertoPor
@@ -375,6 +381,12 @@ export default function Garantias() {
             )}
           </FormRow>
 
+          <FormRow label="# Caso (interno)">
+            <input value={form.caso || ''}
+              onChange={(e) => setForm({ ...form, caso: e.target.value })}
+              placeholder="Ej: G-2026-001"
+              style={{ fontFamily: 'monospace', fontWeight: 600 }} />
+          </FormRow>
           <FormRow label="Fecha de alta">
             <input type="date" value={form.uploadDate?.slice(0, 10) || ''}
               onChange={(e) => setForm({ ...form, uploadDate: e.target.value })} />

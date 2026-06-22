@@ -9,7 +9,7 @@ from app import db
 
 
 # Estados de la revisión
-ESTADOS_REVISION = ["OK", "Sin comunicación", "Falla", "Falta de datos"]
+ESTADOS_REVISION = ["OK", "Sin comunicación", "Falla", "Falta de datos", "Por entregar", "No aplica"]
 
 
 class RevisionSemanal(db.Model):

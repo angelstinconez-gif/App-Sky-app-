@@ -33,6 +33,7 @@ def _ensure_creado_por_columns():
         for col, ddl in [
             ("creado_por",       "ALTER TABLE garantias ADD COLUMN creado_por VARCHAR(160)"),
             ("creado_por_email", "ALTER TABLE garantias ADD COLUMN creado_por_email VARCHAR(180)"),
+            ("caso",             "ALTER TABLE garantias ADD COLUMN caso VARCHAR(80)"),
         ]:
             if col not in cols:
                 try:
@@ -90,7 +91,12 @@ def list_garantias():
     if q:
         like = f"%{q}%"
         query = query.filter(
-            or_(Garantia.project.ilike(like), Garantia.error.ilike(like), Garantia.ticket.ilike(like))
+            or_(
+                Garantia.project.ilike(like),
+                Garantia.error.ilike(like),
+                Garantia.ticket.ilike(like),
+                Garantia.caso.ilike(like),
+            )
         )
     items = query.order_by(Garantia.upload_date.desc().nullslast(), Garantia.id.desc()).all()
     return jsonify([i.to_dict() for i in items])
@@ -107,6 +113,7 @@ def _apply(g: Garantia, data: dict):
     g.supplier = parse_str(data.get("supplier"))
     g.contact = parse_str(data.get("contact"))
     g.ticket = parse_str(data.get("ticket"))
+    g.caso = parse_str(data.get("caso"))
     g.status = parse_str(data.get("status"))
     g.upload_date = parse_date(data.get("uploadDate"))
     g.abierto_por = parse_str(data.get("abiertoPor"))
