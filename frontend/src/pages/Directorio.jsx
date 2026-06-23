@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ImportButton from '../components/ImportButton';
@@ -91,6 +92,21 @@ export default function Directorio() {
 
   const onNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
   const onEdit = (row) => { setForm({ ...empty, ...row }); setEditingId(row.id); setOpen(true); };
+
+  // ── Auto-abrir registro cuando viene ?focus=ID desde el buscador global ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const focusId = parseInt(searchParams.get('focus'), 10);
+    if (!focusId || !items || items.length === 0) return;
+    const row = items.find((r) => r.id === focusId);
+    if (row) {
+      onEdit(row);
+      const sp = new URLSearchParams(searchParams);
+      sp.delete('focus');
+      setSearchParams(sp, { replace: true });
+    }
+    // eslint-disable-next-line
+  }, [items, searchParams]);
   const onSave = async () => {
     if (!form.project) return toast('El proyecto es obligatorio', 'error');
     try {

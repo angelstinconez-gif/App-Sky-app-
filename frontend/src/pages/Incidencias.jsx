@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Pencil, X, Plus, Ticket, AlertTriangle, Check, Eye, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import RelatedAlert from '../components/RelatedAlert';
@@ -148,6 +149,21 @@ export default function Incidencias() {
     setEditingId(row.id);
     setOpenModal(true);
   };
+
+  // ── Auto-abrir incidencia cuando viene ?focus=ID desde el buscador global ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const focusId = parseInt(searchParams.get('focus'), 10);
+    if (!focusId || !items || items.length === 0) return;
+    const row = items.find((r) => r.id === focusId);
+    if (row) {
+      setViewModal(row);
+      const sp = new URLSearchParams(searchParams);
+      sp.delete('focus');
+      setSearchParams(sp, { replace: true });
+    }
+    // eslint-disable-next-line
+  }, [items, searchParams]);
 
   // ── Cuando cambia el código de error (o se selecciona) → auto-llenar ──
   const onErrCodeChange = (code) => {

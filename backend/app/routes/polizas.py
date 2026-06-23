@@ -229,7 +229,17 @@ def list_polizas():
         query = query.filter(Poliza.cobertura == args["cobertura"])
     if args.get("q"):
         like = f"%{args['q']}%"
-        query = query.filter(or_(Poliza.project.ilike(like), Poliza.code.ilike(like)))
+        query = query.filter(or_(
+            Poliza.project.ilike(like),
+            Poliza.code.ilike(like),
+            Poliza.grupo.ilike(like),
+            Poliza.platform.ilike(like),
+            Poliza.zona.ilike(like),
+            Poliza.cuadrilla.ilike(like),
+            Poliza.poliza.ilike(like),
+            Poliza.cobertura.ilike(like),
+            Poliza.tarifa.ilike(like),
+        ))
     items = query.order_by(Poliza.item.asc().nullslast(), Poliza.id.asc()).all()
     return jsonify([i.to_dict() for i in items])
 
@@ -325,4 +335,4 @@ def list_plataformas():
         .order_by(Poliza.platform.asc())
         .all()
     )
-    return 
+    return jsonify([r[0] for r in rows])

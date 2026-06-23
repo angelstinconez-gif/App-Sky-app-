@@ -85,7 +85,7 @@ def global_search():
                 "title": f"#{r.id} · {r.title or ''}",
                 "subtitle": f"{r.site or '—'} · {r.client or ''} · {r.status or ''}",
                 "extra": f"Prioridad: {r.priority or '—'} · Asignado: {r.assigned_to or '—'}",
-                "route": f"/tickets",
+                "route": f"/tickets?focus={r.id}",
                 "icon": "ticket",
             })
 
@@ -112,7 +112,7 @@ def global_search():
                 "title": f"#{r.id} · {r.site or '—'}",
                 "subtitle": f"{r.platform or ''} · {r.problem or r.err_code or '—'} · {r.status}",
                 "extra": f"Prioridad: {r.priority or '—'}",
-                "route": "/incidencias",
+                "route": f"/incidencias?focus={r.id}",
                 "icon": "alert",
             })
 
@@ -138,7 +138,7 @@ def global_search():
                 "title": f"M{r.id} · {r.tipo or 'Mantenimiento'}",
                 "subtitle": f"{r.project or '—'} · {r.estado or ''}",
                 "extra": f"Cuadrilla: {r.cuadrilla or '—'} · Resp: {r.responsable or '—'}",
-                "route": "/mantenimiento",
+                "route": f"/mantenimiento?focus={r.id}",
                 "icon": "wrench",
             })
 
@@ -163,7 +163,7 @@ def global_search():
                 "title": r.project or '—',
                 "subtitle": f"Mantto: {r.maint_contact or '—'} · {r.maint_phone or ''}",
                 "extra": f"Cliente: {r.client_name or r.client_company or '—'}",
-                "route": "/directorio",
+                "route": f"/directorio?focus={r.id}",
                 "icon": "users",
             })
 
@@ -190,7 +190,7 @@ def global_search():
                 "title": f"{r.brand or ''} {r.model or ''} (SN: {r.sn or 's/n'})",
                 "subtitle": f"{r.project or '—'} · {r.status or '—'}",
                 "extra": f"Proveedor: {r.supplier or '—'}",
-                "route": "/garantias",
+                "route": f"/garantias?focus={r.id}",
                 "icon": "shield",
             })
 
@@ -203,6 +203,11 @@ def global_search():
                 Poliza.grupo.ilike(like),
                 Poliza.zona.ilike(like),
                 Poliza.platform.ilike(like),
+                Poliza.cuadrilla.ilike(like),
+                Poliza.tarifa.ilike(like),
+                Poliza.poliza.ilike(like),
+                Poliza.cobertura.ilike(like),
+                Poliza.status.ilike(like),
                 Poliza.id == qid,
             ))
             .limit(limit_per).all()
@@ -214,7 +219,7 @@ def global_search():
                 "title": r.project or '—',
                 "subtitle": f"Código: {r.code or '—'} · {r.platform or ''} · {r.zona or ''}",
                 "extra": f"Vence: {r.pol_end.isoformat() if r.pol_end else '—'}",
-                "route": "/polizas",
+                "route": f"/polizas?focus={r.id}",
                 "icon": "file",
             })
 

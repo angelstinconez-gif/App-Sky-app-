@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Pencil, X, Plus, Download } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import RelatedAlert from '../components/RelatedAlert';
@@ -111,6 +112,22 @@ export default function Tickets() {
 
   const onNew = () => { setForm({ ...empty, openDate: new Date().toISOString().slice(0, 10) }); setEditingId(null); setOpenModal(true); };
   const onEdit = (row) => { setForm({ ...empty, ...row }); setEditingId(row.id); setOpenModal(true); };
+
+  // ── Auto-abrir ticket cuando viene ?focus=ID (desde el buscador global) ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const focusId = parseInt(searchParams.get('focus'), 10);
+    if (!focusId || !items || items.length === 0) return;
+    const row = items.find((r) => r.id === focusId);
+    if (row) {
+      onEdit(row);
+      // limpiar el query param para no re-abrir
+      const sp = new URLSearchParams(searchParams);
+      sp.delete('focus');
+      setSearchParams(sp, { replace: true });
+    }
+    // eslint-disable-next-line
+  }, [items, searchParams]);
 
   const onSave = async () => {
     if (!form.title) return toast('El título es obligatorio', 'error');
