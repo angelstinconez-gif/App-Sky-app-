@@ -173,12 +173,14 @@ def import_polizas():
             existing = Poliza.query.filter_by(project=project).first()
 
         target = existing or Poliza(project=project or "—")
-        # Datos del Excel oficial — siempre sobrescribir fechas/plataforma/poliza/zona/status
+        # Datos del Excel oficial — siempre sobrescribir fechas/plataforma/zona/status
         sys_start = parse_date(g(row, "sysStart", "inicioSistema", "inicio del sistema", "sys start"))
         pol_start = parse_date(g(row, "polStart", "inicioPoliza", "inicio", "garantía inicio", "garantia inicio"))
         pol_end   = parse_date(g(row, "polEnd", "finPoliza", "fin", "garantía fin", "garantia fin"))
         platform  = parse_str(g(row, "platform", "plataforma"))
-        pol_type  = parse_str(g(row, "poliza", "tipoPoliza", "tipo de poliza", "tipo de póliza"))
+        # La columna "Tipo de Póliza" del Excel describe la COBERTURA (Completo, Eléctrico,
+        # Mantenimiento, Operación, etc.), NO el tipo de sistema. Va a `cobertura`.
+        cobertura_excel = parse_str(g(row, "tipo de poliza", "tipo de póliza", "tipoPoliza", "cobertura"))
         zona      = parse_str(g(row, "zona", "ubicación", "ubicacion"))
         status    = parse_str(g(row, "status", "estatus", "garantía estatus", "garantia estatus"))
 
@@ -186,9 +188,20 @@ def import_polizas():
         if pol_start is not None:   target.pol_start = pol_start
         if pol_end is not None:     target.pol_end = pol_end
         if platform:                target.platform = platform
-        if pol_type:                target.poliza = pol_type
+        if cobertura_excel:         target.cobertura = cobertura_excel
         if zona:                    target.zona = zona
         if status:                  target.status = status
+
+        # ── Derivar SIEMPRE `poliza` (tipo de sistema) desde el código ──
+        # -FV → PV · -BT → BESS · -HB → Híbrido
+        c_up = (code or "").upper()
+        if "-FV" in c_up:
+            target.poliza = "PV"
+        elif "-HB" in c_up:
+            target.poliza = "Híbrido"
+        elif "-BT" in c_up:
+            target.poliza = "BESS"
+        # Si no hay código, mantiene lo que ya tenía (no toca poliza)
 
         # Resto preserva info ya capturada
         _apply_non_empty(
