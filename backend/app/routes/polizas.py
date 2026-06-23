@@ -76,12 +76,15 @@ def _ensure_cobertura_col():
 
 
 def _auto_marcar_monitoreo():
-    """SINCRONIZA monitoreo=True/False con la lista hardcoded de proyectos.
+    """Marca con monitoreo=True las pólizas de la lista hardcoded.
 
-    - Las que están en la lista (match EXACTO case-insensitive) → monitoreo=True
-    - Las que NO están en la lista → monitoreo=False
-    - No crea pólizas nuevas.
-    - Idempotente. Una vez por instancia."""
+    REGLAS DE NEGOCIO:
+      - Solo MARCA (añade) las pólizas de la lista que aún no estén marcadas.
+      - NUNCA desmarca. Las marcas manuales del usuario se respetan SIEMPRE.
+      - Si el usuario quiere desmarcar una planta, debe hacerlo manualmente
+        desde el checkbox de la página Pólizas.
+      - Una vez por instancia (flag volátil).
+      - Idempotente: si ya está todo marcado, no hace nada."""
     global _monitoreo_marked
     if _monitoreo_marked:
         return
@@ -90,21 +93,15 @@ def _auto_marcar_monitoreo():
         def _norm(s): return (s or "").strip().lower()
         objetivos = {_norm(p) for p in _MONITOREO_PLANTAS}
         marcadas = 0
-        desmarcadas = 0
         all_pol = Poliza.query.all()
         for p in all_pol:
             key = _norm(p.project)
-            deberia = key in objetivos
-            actual = bool(getattr(p, "monitoreo", False))
-            if deberia and not actual:
+            if key in objetivos and not getattr(p, "monitoreo", False):
                 p.monitoreo = True
                 marcadas += 1
-            elif not deberia and actual:
-                p.monitoreo = False
-                desmarcadas += 1
-        if marcadas or desmarcadas:
+        if marcadas:
             db.session.commit()
-            print(f"👁️  Auto-sync Monitoreo: +{marcadas} marcadas, -{desmarcadas} desmarcadas")
+            print(f"👁️  Auto-marcado Monitoreo: +{marcadas} nuevas (no se tocaron las ya existentes)")
     except Exception as e:
         db.session.rollback()
         print(f"⚠️  auto_marcar_monitoreo falló: {e}")
